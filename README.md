@@ -48,6 +48,8 @@ validated for this release.
 - Intel macOS conversion of standard 60/74/80-minute MD media between NetMD and
   Hi-MD formats, with destructive-operation confirmations
 - Native macOS administrator authorization without opening Terminal windows
+- Native macOS whole-device capture for Hi-MD units whose mass-storage
+  interface cannot be released reliably through libusb alone
 
 ## Screenshots
 
@@ -136,8 +138,10 @@ media cannot. Back up irreplaceable recordings and test with expendable media
 before using format or mode-conversion controls.
 
 The macOS implementation is device-family based rather than MZ-NH900-specific.
-Testing so far includes Sony MZ-NH900 and MZ-RH1 hardware, but other supported
-Hi-MD models still need community verification.
+Testing so far includes Sony MZ-NH1, MZ-NH900, and MZ-RH1 hardware, but other
+supported Hi-MD models still need community verification. The investigation,
+transport design, validation matrix, and remaining MZ-NH600D work are recorded
+in the [Intel macOS Hi-MD native transport work log](docs/MACOS_HIMD_NATIVE_CAPTURE_WORKLOG.md).
 
 For the signing workflow and SignPath configuration, see
 [PUBLIC-SIGNING.md](PUBLIC-SIGNING.md).

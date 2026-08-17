@@ -201303,6 +201303,23 @@ function pair(e, t) {
     }
     try {
       if (await ServiceRegistry.netmdService.pair()) {
+        if (localStorage.getItem("wmdPendingHiMDFormat") === "1") {
+          const S = ServiceRegistry.netmdService.completePendingHiMDFormat;
+          const T = window.confirm(
+            "방금 Hi-MD로 전환한 디스크가 현재 기기에 들어 있습니까?\n\n확인을 누르면 Hi-MD 파일시스템 초기화를 마무리하며 디스크의 기존 데이터가 모두 삭제됩니다. 다른 디스크를 넣었다면 취소를 누르세요.",
+          );
+          if (!T) {
+            localStorage.removeItem("wmdPendingHiMDFormat");
+          } else if (typeof S === "function") {
+            (await S.call(ServiceRegistry.netmdService),
+              localStorage.removeItem("wmdPendingHiMDFormat"),
+              window.alert(
+                "Hi-MD 파일시스템 초기화와 읽기 검증이 완료되었습니다.",
+              ));
+          } else if (!/Mac/i.test(navigator.platform || "")) {
+            localStorage.removeItem("wmdPendingHiMDFormat");
+          }
+        }
         n(
           batchActions([
             actions$8.setMainView("MAIN"),
@@ -201595,9 +201612,28 @@ function wipeDisc() {
 function formatToHiMD() {
   return async function (e) {
     const { netmdService: t } = ServiceRegistry;
-    (e(actions$8.setLoading(!0)),
-      await t.formatToHiMD(),
-      e(actions$8.setMainView("WELCOME")));
+    e(actions$8.setLoading(!0));
+    const n = /Mac/i.test(navigator.platform || "");
+    try {
+      (n && localStorage.setItem("wmdPendingHiMDFormat", "1"),
+        await t.formatToHiMD(),
+        e(actions$8.setMainView("WELCOME")),
+        n &&
+          window.alert(
+            "Hi-MD 모드 전환 명령을 보냈습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하세요. 이어지는 파일시스템 초기화와 검증이 끝날 때까지 기기의 전원이나 USB 케이블을 분리하지 마세요.",
+          ));
+    } catch (S) {
+      e(actions$8.setLoading(!1));
+      if (n) {
+        (e(actions$8.setMainView("WELCOME")),
+          window.alert(
+            "Hi-MD 모드 전환 중 기존 NetMD USB 연결이 종료되었습니다. 이는 정상적인 모드 전환 과정일 수 있습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하여 파일시스템 초기화를 마무리하세요.",
+          ));
+        return;
+      }
+      localStorage.removeItem("wmdPendingHiMDFormat");
+      throw S;
+    }
   };
 }
 function ejectDisc() {

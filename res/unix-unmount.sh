@@ -27,7 +27,9 @@ function unmount_mac(){
             /sbin/mount | /usr/bin/grep -q "^/dev/${BSD_NAME} on "
         }
 
-        # A published raw disk with no mounted volume needs no unmount.
+        # The native helper captures the USB device after this script returns.
+        # If no filesystem is mounted, there is nothing for Disk Arbitration
+        # to flush here.
         if ! is_mounted; then
             return 0
         fi
@@ -87,7 +89,7 @@ function unmount_mac(){
             elif [[ $line =~ ^Vendor\ ID.* ]]; then
                 CUR_VID=$(cut -b 14-17 <<< "$line")
             elif [[ $line =~ ^BSD\ Name.* ]]; then
-                BSD_NAME=$(cut -b 10- <<< "$line")
+                BSD_NAME=$(cut -b 10- <<< "$line" | xargs)
                 if [[ "$CUR_PID" == "$PID" ]] && [[ "$CUR_VID" == "$VID" ]]; then
                     echo "$BSD_NAME"
                 fi

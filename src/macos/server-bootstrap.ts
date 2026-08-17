@@ -26,7 +26,7 @@ export function startOutsideElectron(executablePath: string, applicationRoot: st
     if(!fs.existsSync(serverPath)) {
         serverPath = pathJoin(applicationRoot, "macos", "server.js");
     }
-    let envs = `ELECTRON_RUN_AS_NODE=1`;
+    let envs = `ELECTRON_RUN_AS_NODE=1 LIBUSB_DEBUG=4`;
     envs += ` EWWORKDIR=${getSocketDir(workDir)}`;
     envs += ` ORIGINAL_UID=${process.getuid!() ?? ''}`;
     envs += ` ORIGINAL_GID=${process.getgid!() ?? ''}`;
@@ -35,7 +35,8 @@ export function startOutsideElectron(executablePath: string, applicationRoot: st
     }
     const fullCommand = `${envs} "${executablePath}" "${serverPath}" "${userDataPath}"`;
     const encodedCommand = Buffer.from(fullCommand, 'utf8').toString('base64');
-    const privilegedCommand = `echo '${encodedCommand}' | /usr/bin/base64 -D | /bin/zsh`;
+    const escapedDiagnosticPath = pathJoin(userDataPath, 'wmd-himd-helper.log').replace(/'/g, `'\\''`);
+    const privilegedCommand = `echo '${encodedCommand}' | /usr/bin/base64 -D | /bin/zsh 2>>'${escapedDiagnosticPath}'`;
     // Use macOS's native authorization dialog. This keeps Terminal closed and
     // leaves the elevated helper attached to osascript until the socket exits.
     const osa = `do shell script "${privilegedCommand}" with administrator privileges`;

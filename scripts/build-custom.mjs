@@ -4,10 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const packageRunner = process.env.PNPM_EXECUTABLE
-  ? process.env.PNPM_EXECUTABLE
-  : process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const packageRunnerPrefix = process.env.PNPM_EXECUTABLE ? ['exec'] : [];
 
 function run(command, args, options = {}) {
   const useWindowsCommandShell =
@@ -132,7 +128,7 @@ run(process.execPath, [
 run(process.execPath, [
   join(root, 'custom-overrides', 'patches', 'patch-himd-auth-logging.mjs'),
 ]);
-run(packageRunner, [...packageRunnerPrefix, 'tsc']);
+run(process.execPath, [join(root, 'node_modules', 'typescript', 'bin', 'tsc')]);
 
 copy(join(root, 'custom-overrides', 'dist'), join(root, 'dist'));
 // Electron's sandboxed preload can only require a small allow-list of modules.
@@ -150,6 +146,19 @@ copy(
 
 const extras = join(root, 'extras');
 mkdirSync(extras, { recursive: true });
+if (process.platform === 'darwin') {
+  run('/usr/bin/clang', [
+    '-arch', 'x86_64',
+    '-mmacosx-version-min=10.15',
+    '-fobjc-arc',
+    '-Wall', '-Wextra', '-Werror',
+    join(root, 'native', 'macos', 'wmd-usbhost-helper.m'),
+    '-framework', 'IOUSBHost',
+    '-framework', 'IOKit',
+    '-framework', 'Foundation',
+    '-o', join(extras, 'wmd-scsi-helper'),
+  ]);
+}
 copy(
   join(root, 'custom-overrides', 'extras', 'WMDP-WINUSB-DRIVER-NOTICE.txt'),
   join(extras, 'WMDP-WINUSB-DRIVER-NOTICE.txt'),

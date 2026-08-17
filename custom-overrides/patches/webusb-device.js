@@ -142,6 +142,49 @@ class WebUSBDevice {
             };
         }
         catch (error) {
+            const retryNH600OnMac = (0, os_1.platform)() === 'darwin' &&
+                this.vendorId === 0x054c && this.productId === 0x0187 &&
+                String(error).includes('LIBUSB_ERROR_OTHER');
+            if (retryNH600OnMac) {
+                const nativeInterface = this.device.interface(interfaceNumber);
+                let lastError = error;
+                console.log('MZ-NH600: initial automatic interface capture failed; starting bounded recovery.', {
+                    interfaceNumber,
+                    configuration: this.device.configDescriptor?.bConfigurationValue ?? null,
+                    initialError: String(error),
+                });
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        if (typeof this.device.setAutoDetachKernelDriver === 'function') {
+                            this.device.setAutoDetachKernelDriver(true);
+                        }
+                        const kernelDriverActive = nativeInterface.isKernelDriverActive();
+                        console.log(`MZ-NH600: recovery attempt ${attempt} state.`, {
+                            kernelDriverActive,
+                            opened: this.opened,
+                        });
+                        if (kernelDriverActive) {
+                            console.log(`MZ-NH600: recovery attempt ${attempt} explicitly capturing the device.`);
+                            nativeInterface.detachKernelDriver();
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000 + attempt * 750));
+                        nativeInterface.claim();
+                        this.configuration.interfaces[this.configuration.interfaces.indexOf(iface)] = {
+                            interfaceNumber,
+                            alternate: iface.alternate,
+                            alternates: iface.alternates,
+                            claimed: true
+                        };
+                        console.log(`MZ-NH600: interface claim recovery succeeded on attempt ${attempt}.`);
+                        return;
+                    }
+                    catch (retryError) {
+                        lastError = retryError;
+                        console.log(`MZ-NH600: interface claim recovery attempt ${attempt} failed: ${retryError}`);
+                    }
+                }
+                throw new Error(`claimInterface NH600 recovery failed after 3 attempts: ${lastError}`);
+            }
             throw new Error(`claimInterface error: ${error}`);
         }
     }
@@ -246,7 +289,14 @@ class WebUSBDevice {
         try {
             this.checkDeviceOpen();
             const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_IN);
-            endpoint.timeout = Math.max(endpoint.timeout || 0, 10000);
+            // Some early Hi-MD units need substantially longer than ten
+            // seconds for media authentication, while the NH900 can spend the
+            // same amount of time committing ICV data after an upload. Keep
+            // the longer timeout scoped to the observed models on macOS.
+            const needsSlowHiMDTimeout = (0, os_1.platform)() === 'darwin' &&
+                this.vendorId === 0x054c &&
+                (this.productId === 0x017f || this.productId === 0x0183);
+            endpoint.timeout = Math.max(endpoint.timeout || 0, needsSlowHiMDTimeout ? 60000 : 10000);
             const result = await endpoint.transferAsync(length);
             return {
                 data: result ? new DataView(new Uint8Array(result).buffer) : undefined,
@@ -271,7 +321,13 @@ class WebUSBDevice {
         try {
             this.checkDeviceOpen();
             const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_OUT);
-            endpoint.timeout = Math.max(endpoint.timeout || 0, 10000);
+            // MZ-NH1 (054c:017f) can hold the first mass-storage command while
+            // waking and validating an otherwise healthy Hi-MD filesystem.
+            // Do not retry the command because a timed-out bulk write may have
+            // been partially accepted; only extend its completion window.
+            const isNH1OnMac = (0, os_1.platform)() === 'darwin' &&
+                this.vendorId === 0x054c && this.productId === 0x017f;
+            endpoint.timeout = Math.max(endpoint.timeout || 0, isNH1OnMac ? 60000 : 10000);
             const buffer = Buffer.from(data);
             const bytesWritten = await endpoint.transferAsync(buffer);
             return {

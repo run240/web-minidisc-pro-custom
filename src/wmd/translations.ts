@@ -8,6 +8,7 @@ import { makeAsyncWorker, makeAsyncCryptoBlockProvider } from "himd-js/dist/node
 import { DevicesIds, UMSCHiMDFilesystem } from "himd-js";
 import { WebUSBDevice, findByIds, usb } from 'usb';
 import { unmountAll } from "../unmount-drives";
+import { MacOSNativeSCSIWebUSB } from "../macos/native-scsi-webusb";
 
 export class EWMDNetMD extends NetMDUSBService {
     override getWorkerForUpload() {
@@ -43,17 +44,21 @@ export class EWMDHiMD extends HiMDFullService {
             await unmountAll(vendorId, deviceId);
         }
 
+        if (process.platform === 'darwin') {
+            // macOS' libusb detach operation captures and re-enumerates the
+            // entire USB mass-storage device. Some Hi-MD models then expose a
+            // claimed but non-responsive Bulk-Out pipe. Keep Apple's storage
+            // transport in control and issue the same SCSI CDBs through
+            // SCSITaskLib instead.
+            const nativeDevice = await MacOSNativeSCSIWebUSB.create();
+            this.fsDriver = new UMSCHiMDFilesystem(nativeDevice as any);
+            return true;
+        }
+
         legacyDevice.open();
         const iface = legacyDevice.interface(0);
         try{
-            if(process.platform === 'darwin' &&
-                typeof legacyDevice.setAutoDetachKernelDriver === 'function') {
-                // Let libusb detach the macOS mass-storage driver when the
-                // interface is claimed and reattach it when the device closes.
-                // A manual detach survives the first session and can leave a
-                // subsequent Hi-MD connection without a usable kernel owner.
-                legacyDevice.setAutoDetachKernelDriver(true);
-            } else if(iface.isKernelDriverActive()) {
+            if(iface.isKernelDriverActive()) {
                 iface.detachKernelDriver();
             }
         }catch(ex){
@@ -80,6 +85,39 @@ export class EWMDHiMD extends HiMDFullService {
             await this.fsDriver!.init(this.bypassFSCoherencyChecks);
         }
         return super.listContent(false);
+    }
+
+    /**
+     * Finish the second half of a standard-MD -> Hi-MD conversion.
+     *
+     * The NetMD command erases the UTOC and asks the recorder to switch USB
+     * modes. Some recorders initialise the Hi-MD filesystem in firmware while
+     * others can re-enumerate before that work has completed. On macOS the new
+     * mass-storage interface is a separate USB session, so finish and verify
+     * the format after the user reconnects in Hi-MD mode.
+     */
+    async completePendingHiMDFormat() {
+        if (!this.fsDriver) {
+            const paired = await this.pair();
+            if (!paired || !this.fsDriver) {
+                throw new Error('Hi-MD USB 인터페이스를 열지 못했습니다.');
+            }
+        }
+
+        this.himd = undefined;
+        this.cachedDisc = undefined;
+        this.atdata = null;
+        console.log('Hi-MD format completion: waiting for the re-enumerated device to settle');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Hi-MD format completion: creating and flushing the filesystem');
+        await this.fsDriver.wipeDisc(true);
+        console.log('Hi-MD format completion: filesystem created; loading Hi-MD metadata');
+        await this.initHiMD();
+
+        const total = await this.fsDriver.getTotalSpace();
+        const deviceName = this.himd!.getDeviceName();
+        console.log(`Hi-MD format completion: verified ${deviceName}, ${total} bytes`);
+        return { total, deviceName };
     }
 
     async formatStandardMDToNetMD() {

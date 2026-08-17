@@ -1996,7 +1996,7 @@ async function integrate(window) {
                 return await Promise.race([
                     call,
                     new Promise((_, reject) => {
-                        timeout = setTimeout(() => reject(new Error('Hi-MD 디스크 초기화 시간이 초과되었습니다. USB를 분리한 뒤 다시 연결해 주세요.')), 30000);
+                        timeout = setTimeout(() => reject(new Error('Hi-MD 기기 응답 시간이 초과되었습니다. USB를 분리한 뒤 기기 전원을 다시 켜고 연결해 주세요.')), 75000);
                     }),
                 ]);
             }

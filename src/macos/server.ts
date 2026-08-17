@@ -39,7 +39,14 @@ function closeAll(){
     process.exit();
 }
 function main() {
-    appendDiagnostic('helper starting', { pid: process.pid });
+    appendDiagnostic('helper starting', {
+        pid: process.pid,
+        uid: process.getuid?.() ?? null,
+        euid: process.geteuid?.() ?? null,
+        platform: process.platform,
+        arch: process.arch,
+        libusbDebug: process.env.LIBUSB_DEBUG ?? null,
+    });
     console.log("ElectronWMD's MacOS SCSI intermediate server by asivery");
     console.log("Starting up...");
     console.log(`Base dir: ${workDir}`);

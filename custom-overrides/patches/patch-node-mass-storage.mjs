@@ -56,6 +56,16 @@ const patchedV1 = `    // Bulk-Only Mass Storage Reset
 const patched = `    // Bulk-Only Mass Storage Reset
     runBOMSR() {
         return __awaiter(this, void 0, void 0, function* () {
+            // MZ-NH1 is already in a usable mass-storage state after macOS
+            // releases the mounted volume. Sending a BOT reset here leaves
+            // its Bulk-Out endpoint unresponsive until a power cycle.
+            const skipNH1Reset = process.platform === "darwin" &&
+                this.usbDevice.vendorId === 0x054c &&
+                this.usbDevice.productId === 0x017f;
+            if (skipNH1Reset) {
+                console.log("MZ-NH1: preserving the existing mass-storage session; BOT reset skipped.");
+                return;
+            }
             const release = yield this.driverMutex.acquire();
             try {
                 // USB Mass Storage Bulk-Only Transport 1.0 section 3.1:
