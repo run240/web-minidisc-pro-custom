@@ -316,6 +316,7 @@ function getDefinedFunctions(currentObj) {
     } while ((currentObj = Object.getPrototypeOf(currentObj)));
     return defined;
 }
+const stagedHiMDUploads = new Map();
 function traverseObject(window, objectFactory, namespace, recovery = {}) {
     let currentObj = objectFactory();
     const defined = getDefinedFunctions(currentObj);
@@ -327,6 +328,17 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
         electron_1.ipcMain.handle(translatedName, async function (_, ...allArgs) {
             var _a;
             for (let i = 0; i < allArgs.length; i++) {
+                if (((_a = allArgs[i]) === null || _a === void 0 ? void 0 : _a.interprocessType) === 'stagedHiMDUpload') {
+                    const staged = stagedHiMDUploads.get(allArgs[i].uploadId);
+                    if (!staged)
+                        throw new Error('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.');
+                    stagedHiMDUploads.delete(allArgs[i].uploadId);
+                    const combined = fs_1.default.readFileSync(staged.path);
+                    fs_1.default.unlinkSync(staged.path);
+                    allArgs[i] = combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength);
+                    appendDiagnosticLog('Hi-MD staged upload assembled', { bytes: combined.byteLength });
+                    continue;
+                }
                 if (((_a = allArgs[i]) === null || _a === void 0 ? void 0 : _a.interprocessType) === 'function') {
                     allArgs[i] = async (...args) => {
                         if (window.isDestroyed() || window.webContents.isDestroyed())
@@ -560,6 +572,7 @@ async function integrate(window) {
         buttons: ['확인'],
     }));
     const modeSwitchStore = new electron_store_1.default({ name: 'minidisc-mode-switch' });
+    let miniDiscModeSwitchInProgress = false;
     const rememberPendingMiniDiscMode = (mode) => {
         modeSwitchStore.set('pending', {
             mode,
@@ -685,8 +698,11 @@ async function integrate(window) {
     ]);
     const switchNetMDInterfaceToHiMD = async (device) => {
         const expectedProducts = hiMDProductsByNetMDProduct.get(device?.productId);
-        if (!device?.supportsNetMD || device.driverStatus !== 'winusb' || !expectedProducts) {
-            return { ok: false, message: 'Hi-MD 전환을 지원하는 NetMD WinUSB 인터페이스를 찾지 못했습니다.' };
+        const usableDriver = process.platform === 'darwin'
+            ? device?.driverStatus === 'not-applicable'
+            : device?.driverStatus === 'winusb';
+        if (!device?.supportsNetMD || !usableDriver || !expectedProducts) {
+            return { ok: false, message: 'Hi-MD 전환을 지원하는 NetMD USB 인터페이스를 찾지 못했습니다.' };
         }
         webusb.setPreferredDevice(device);
         let openedInterface;
@@ -712,6 +728,7 @@ async function integrate(window) {
             try {
                 // This is only the interface switch. Unlike formatToHiMD(),
                 // it does not call eraseDisc() and does not modify media data.
+                miniDiscModeSwitchInProgress = true;
                 rememberPendingMiniDiscMode('himd');
                 await withTimeout(openedInterface.enterHiMDMode(), 10000, 'Hi-MD 인터페이스 전환 명령 시간이 초과되었습니다.');
             }
@@ -728,6 +745,11 @@ async function integrate(window) {
                     expectedProducts.includes(candidate.productId));
                 if (switched) {
                     webusb.setPreferredDevice(switched);
+                    // macOS may enumerate the new Hi-MD USB identity before
+                    // its mass-storage interface is ready for control traffic.
+                    // Give the kernel a short settling window before pairing.
+                    if (process.platform === 'darwin')
+                        await wait(2000);
                     return {
                         ok: true,
                         message: `${switched.modelHint}이(가) Hi-MD USB 모드(${switched.vendorIdHex}:${switched.productIdHex})로 전환되었습니다.`,
@@ -750,6 +772,7 @@ async function integrate(window) {
             };
         }
         finally {
+            miniDiscModeSwitchInProgress = false;
             service.netmdInterface = undefined;
             service.dropCachedContentList();
             if (openedInterface) {
@@ -853,11 +876,17 @@ async function integrate(window) {
     };
     electron_1.ipcMain.handle('restartMiniDiscUsbInterface', (_, requestedMode) => restartMiniDiscUsbInterface(requestedMode, true));
     electron_1.ipcMain.handle('prepareMiniDiscConnection', async (_, requestedMode, selectedDeviceId) => {
-        if (process.platform !== 'win32') {
+        if (process.platform !== 'win32' && process.platform !== 'darwin') {
             return { proceed: true };
         }
         if (requestedMode !== 'netmd' && requestedMode !== 'himd') {
             return { proceed: false, message: '알 수 없는 MiniDisc 연결 모드입니다.' };
+        }
+        // On macOS, Hi-MD runs in the privileged helper while NetMD runs in
+        // the main process.  Only perform the safe NetMD -> Hi-MD interface
+        // switch here; leave NetMD requests to the original connection flow.
+        if (process.platform === 'darwin' && requestedMode !== 'himd') {
+            return { proceed: true };
         }
         // RH1-class devices need a short settling period after a physical
         // media change. Opening the mass-storage interface too early can
@@ -876,7 +905,7 @@ async function integrate(window) {
                     device.mode === 'netmd' &&
                     hiMDProductsByNetMDProduct.has(device.productId))
                 : undefined;
-            if (netMDDevice && netMDDevice.driverStatus !== 'winusb') {
+            if (process.platform === 'win32' && netMDDevice && netMDDevice.driverStatus !== 'winusb') {
                 return {
                     proceed: false,
                     modeSwitchFailed: true,
@@ -889,6 +918,25 @@ async function integrate(window) {
                             '',
                             '디스크 데이터는 변경되지 않습니다.',
                         ].join('\n'),
+                    },
+                };
+            }
+            if (process.platform === 'darwin' && netMDDevice) {
+                webusb.clearPreferredDevice();
+                return {
+                    proceed: false,
+                    modeSwitchFailed: true,
+                    warning: {
+                        title: '일반 MD가 들어 있습니다',
+                        message: `${netMDDevice.modelHint}이(가) 현재 일반 MD(NetMD) 모드입니다.`,
+                        detail: [
+                            '디스크의 내용을 유지하려면 닫은 뒤 NetMD로 연결하세요.',
+                            '',
+                            'Hi-MD로 사용하려면 아래 포맷 버튼을 선택할 수 있습니다.',
+                            '포맷하면 디스크의 모든 트랙과 제목이 영구적으로 삭제됩니다.',
+                        ].join('\n'),
+                        formatTarget: 'himd',
+                        formatLabel: '전체 삭제 후 Hi-MD로 포맷',
                     },
                 };
             }
@@ -935,7 +983,7 @@ async function integrate(window) {
                     };
                 }
             }
-            if (netMDDevice) {
+            if (netMDDevice && process.platform === 'win32') {
                 const choice = await showRendererWarning(window, {
                     title: 'NetMD에서 Hi-MD로 전환',
                     message: '현재 기기는 NetMD USB 모드입니다. 어떻게 진행할까요?',
@@ -1033,6 +1081,9 @@ async function integrate(window) {
             }
         }
         webusb.setPreferredDevice(device);
+        if (process.platform === 'darwin') {
+            return { proceed: true, device };
+        }
         if (device.driverStatus === 'winusb') {
             return { proceed: true, device };
         }
@@ -1297,9 +1348,10 @@ async function integrate(window) {
             device,
         };
     });
+    let formatStandardMDToNetMDOnMac;
     const formatStandardMDToNetMD = async () => {
-        if (process.platform !== 'win32') {
-            return { ok: false, message: '이 기능은 Windows 전용입니다.' };
+        if (process.platform !== 'win32' && process.platform !== 'darwin') {
+            return { ok: false, message: '이 운영체제에서는 일반 MD 포맷을 지원하지 않습니다.' };
         }
         const diagnostics = (0, device_diagnostics_1.getMiniDiscDiagnostics)();
         const hiMDDevices = diagnostics.devices.filter(device => device.supportsHiMD);
@@ -1310,7 +1362,7 @@ async function integrate(window) {
             return { ok: false, message: '안전을 위해 포맷할 Hi-MD 기기 하나만 USB에 연결해 주세요.' };
         }
         const hiMDDevice = hiMDDevices[0];
-        if (hiMDDevice.driverStatus !== 'winusb') {
+        if (process.platform === 'win32' && hiMDDevice.driverStatus !== 'winusb') {
             return {
                 ok: false,
                 message: `${hiMDDevice.modelHint}의 현재 Hi-MD 인터페이스에 WinUSB를 먼저 설치해 주세요.`,
@@ -1335,6 +1387,11 @@ async function integrate(window) {
         });
         if (confirmation !== 'format') {
             return { ok: false, cancelled: true, message: '포맷을 취소했습니다.' };
+        }
+        if (process.platform === 'darwin') {
+            if (!formatStandardMDToNetMDOnMac)
+                return { ok: false, message: 'macOS Hi-MD 포맷 도우미가 아직 준비되지 않았습니다.' };
+            return await formatStandardMDToNetMDOnMac(hiMDDevice);
         }
         webusb.setPreferredDevice(hiMDDevice);
         try {
@@ -1445,6 +1502,27 @@ async function integrate(window) {
         return factoryDefList;
     });
     const himdService = new translations_1.EWMDHiMD({ debug: true });
+    for (const channel of ['beginHiMDUploadStage', 'appendHiMDUploadStage'])
+        electron_1.ipcMain.removeHandler(channel);
+    electron_1.ipcMain.handle('beginHiMDUploadStage', (_event, uploadId, total) => {
+        const safeId = String(uploadId).replace(/[^a-zA-Z0-9_-]/g, '');
+        const uploadPath = path_1.default.join(electron_1.app.getPath('userData'), `himd-upload-${safeId}.bin`);
+        fs_1.default.writeFileSync(uploadPath, Buffer.alloc(0));
+        stagedHiMDUploads.set(uploadId, { total, received: 0, path: uploadPath });
+        appendDiagnosticLog('Hi-MD upload staging started', { uploadId, total });
+        return true;
+    });
+    electron_1.ipcMain.handle('appendHiMDUploadStage', (_event, uploadId, chunk) => {
+        const staged = stagedHiMDUploads.get(uploadId);
+        if (!staged)
+            throw new Error('Hi-MD 업로드 준비 세션이 만료되었습니다.');
+        const buffer = Buffer.from(chunk);
+        fs_1.default.appendFileSync(staged.path, buffer);
+        staged.received += buffer.byteLength;
+        if (staged.received > staged.total)
+            throw new Error('Hi-MD 업로드 준비 데이터 크기가 올바르지 않습니다.');
+        return staged.received;
+    });
     const transferMethods = new Set(['prepareUpload', 'upload', 'finalizeUpload', 'download']);
     const hasActiveTransfer = serviceObject => [...(serviceObject.__activeIpcMethods ?? [])].some(method => transferMethods.has(method));
     let rendererReportedTransferStall = false;
@@ -1671,8 +1749,8 @@ async function integrate(window) {
     };
     electron_1.ipcMain.handle('returnToModeSelection', async () => clearMiniDiscConnections());
     const formatStandardMDToHiMD = async () => {
-        if (process.platform !== 'win32') {
-            return { ok: false, message: '이 기능은 Windows 전용입니다.' };
+        if (process.platform !== 'win32' && process.platform !== 'darwin') {
+            return { ok: false, message: '이 운영체제에서는 Hi-MD 포맷을 지원하지 않습니다.' };
         }
         const diagnostics = (0, device_diagnostics_1.getMiniDiscDiagnostics)();
         const candidates = diagnostics.devices.filter(device => device.supportsNetMD && device.mode === 'netmd');
@@ -1699,7 +1777,7 @@ async function integrate(window) {
         }
         if (!targetDevice)
             return { ok: false, cancelled: true, message: '포맷할 기기를 선택하지 않았습니다.' };
-        if (targetDevice.driverStatus !== 'winusb') {
+        if (process.platform === 'win32' && targetDevice.driverStatus !== 'winusb') {
             return {
                 ok: false,
                 message: `${targetDevice.modelHint}의 NetMD 인터페이스에 WinUSB를 먼저 설치해 주세요.`,
@@ -1749,7 +1827,9 @@ async function integrate(window) {
                     '',
                     `대상 기기: ${targetDevice.modelHint} (${targetDevice.vendorIdHex}:${targetDevice.productIdHex})`,
                     '포맷 뒤 기기는 Hi-MD USB 인터페이스로 다시 연결됩니다.',
-                    '설치된 범용 WinUSB 드라이버가 전환된 Hi-MD USB ID에도 자동 적용됩니다.',
+                    process.platform === 'win32'
+                        ? '설치된 범용 WinUSB 드라이버가 전환된 Hi-MD USB ID에도 자동 적용됩니다.'
+                        : 'macOS에서 새 Hi-MD 볼륨을 안전하게 언마운트한 뒤 다시 연결합니다.',
                 ].join('\n'),
                 choices: [
                     { value: 'cancel', label: '취소', kind: 'secondary' },
@@ -1761,6 +1841,7 @@ async function integrate(window) {
                 return { ok: false, cancelled: true, message: '포맷을 취소했습니다.' };
             let commandError;
             try {
+                miniDiscModeSwitchInProgress = true;
                 await withTimeout(service.formatToHiMD(), 30000, 'Hi-MD 포맷 명령의 응답 시간이 초과되었습니다.');
                 switchRequested = true;
             }
@@ -1782,7 +1863,8 @@ async function integrate(window) {
             ]);
             const expectedProducts = expectedHiMDProducts.get(targetDevice.productId) ?? [];
             let refreshedDevices = [];
-            for (let attempt = 0; attempt < 4; attempt++) {
+            const formatReenumerationAttempts = process.platform === 'darwin' ? 20 : 4;
+            for (let attempt = 0; attempt < formatReenumerationAttempts; attempt++) {
                 await wait(800);
                 refreshedDevices = (0, device_diagnostics_1.getMiniDiscDiagnostics)().devices;
                 if (refreshedDevices.some(device => device.vendorId === targetDevice.vendorId &&
@@ -1824,6 +1906,7 @@ async function integrate(window) {
             };
         }
         finally {
+            miniDiscModeSwitchInProgress = false;
             const netmdInterface = service.netmdInterface;
             service.netmdInterface = undefined;
             service.dropCachedContentList();
@@ -1836,6 +1919,14 @@ async function integrate(window) {
     electron_1.ipcMain.handle('formatTimedOutMiniDiscMedia', async (_, targetFormat) => {
         if (targetFormat !== 'himd' && targetFormat !== 'netmd') {
             return { ok: false, message: '알 수 없는 MiniDisc 포맷 형식입니다.' };
+        }
+        if (process.platform === 'darwin' && targetFormat === 'himd') {
+            const result = await formatStandardMDToHiMD();
+            if (result?.ok && result.switchRequested) {
+                rememberPendingMiniDiscMode('himd');
+                return { ...result, restartRequired: true };
+            }
+            return result;
         }
         const diagnostics = (0, device_diagnostics_1.getMiniDiscDiagnostics)();
         const sourceMode = targetFormat === 'himd' ? 'himd' : 'netmd';
@@ -1891,7 +1982,10 @@ async function integrate(window) {
     }
     else {
         const connection = new server_bootstrap_1.Connection();
-        connection.deviceDisconnectedCallback = () => reload(window);
+        connection.deviceDisconnectedCallback = () => {
+            if (!miniDiscModeSwitchInProgress)
+                reload(window);
+        };
         const connectionMutex = new async_mutex_1.Mutex();
         const callHiMDMethod = async (methodName, allArgs) => {
             const call = connection.callMethod('himd', methodName, ...allArgs);
@@ -1911,25 +2005,109 @@ async function integrate(window) {
                     clearTimeout(timeout);
             }
         };
+        formatStandardMDToNetMDOnMac = async (hiMDDevice) => {
+            let helperError;
+            let helperCallStarted = false;
+            miniDiscModeSwitchInProgress = true;
+            rememberPendingMiniDiscMode('netmd');
+            try {
+                if (!connection.socket) {
+                    try {
+                        (0, server_bootstrap_1.startServer)();
+                    }
+                    catch (error) {
+                        helperError = error;
+                    }
+                    if (!helperError) {
+                        const connectionError = await connection.awaitConnection();
+                        if (connectionError)
+                            helperError = connectionError;
+                    }
+                }
+                if (!helperError && connection.socket) {
+                    const release = await connectionMutex.acquire();
+                    try {
+                        helperCallStarted = true;
+                        await withTimeout(connection.callMethod('himd', 'formatStandardMDToNetMD'), 45000, '일반 MD 초기화 시간이 초과되었습니다.');
+                    }
+                    catch (error) {
+                        // The helper socket generally closes as the recorder
+                        // changes USB identity, so this can mean success.
+                        helperError = error;
+                    }
+                    finally {
+                        release();
+                    }
+                }
+                for (let attempt = 0; attempt < 30; attempt++) {
+                    await wait(500);
+                    const switched = (0, device_diagnostics_1.getMiniDiscDiagnostics)().devices.find(device => device.vendorId === hiMDDevice.vendorId && device.mode === 'netmd');
+                    if (switched) {
+                        return {
+                            ok: true,
+                            erased: true,
+                            switchRequested: true,
+                            message: '일반 MD 초기화가 완료되었고 기기가 NetMD 모드로 전환되었습니다.',
+                        };
+                    }
+                }
+                const remainingHiMD = (0, device_diagnostics_1.getMiniDiscDiagnostics)().devices.some(device => device.vendorId === hiMDDevice.vendorId && device.mode === 'himd');
+                const expectedDisconnect = helperCallStarted && Boolean(helperError) && !remainingHiMD;
+                return {
+                    ok: expectedDisconnect,
+                    erased: expectedDisconnect,
+                    switchRequested: true,
+                    message: expectedDisconnect
+                        ? '초기화 명령 뒤 Hi-MD 연결이 종료되었습니다. USB 케이블을 한 번 다시 연결한 뒤 NetMD를 선택해 주세요.'
+                        : helperError instanceof Error
+                            ? helperError.message
+                            : helperError
+                                ? String(helperError)
+                                : '초기화 명령을 완료했지만 NetMD USB 모드를 확인하지 못했습니다. USB 케이블을 한 번 다시 연결해 주세요.',
+                };
+            }
+            catch (error) {
+                clearPendingMiniDiscMode();
+                return { ok: false, message: error instanceof Error ? error.message : String(error) };
+            }
+            finally {
+                miniDiscModeSwitchInProgress = false;
+            }
+        };
         connection.callbackHandler = (service, name, ...args) => window.webContents.send("_callback", (service === 'himd' ? '_himd_' : '_nwjs_') + name, ...args);
         const himdDefinedMethods = getDefinedFunctions(himdService);
         electron_1.ipcMain.handle('_himd__definedParameters', () => [...himdDefinedMethods].map(e => '_himd_' + e));
         for (let methodName of himdDefinedMethods) {
             electron_1.ipcMain.handle(`_himd_${methodName}`, async (_, ...allArgs) => {
                 console.log(`Execute: ${methodName}`);
+                for (let i = 0; i < allArgs.length; i++) {
+                    if (allArgs[i]?.interprocessType !== 'stagedHiMDUpload')
+                        continue;
+                    const staged = stagedHiMDUploads.get(allArgs[i].uploadId);
+                    if (!staged)
+                        return [null, new Error('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.')];
+                    stagedHiMDUploads.delete(allArgs[i].uploadId);
+                    allArgs[i] = {
+                        interprocessType: 'stagedHiMDUploadFile',
+                        path: staged.path,
+                        bytes: staged.received,
+                    };
+                    appendDiagnosticLog('Hi-MD staged upload handed to macOS helper', {
+                        bytes: staged.received,
+                    });
+                }
                 if (methodName === 'connect') {
-                    if (connection.socket) {
-                        connection.disconnect();
-                    }
-                    try {
-                        (0, server_bootstrap_1.startServer)();
-                    }
-                    catch (ex) {
-                        return [null, ex];
-                    }
-                    const error = await connection.awaitConnection();
-                    if (error) {
-                        return [null, error];
+                    if (!connection.socket) {
+                        try {
+                            (0, server_bootstrap_1.startServer)();
+                        }
+                        catch (ex) {
+                            return [null, ex];
+                        }
+                        const error = await connection.awaitConnection();
+                        if (error) {
+                            return [null, error];
+                        }
                     }
                 }
                 if (!connection.socket) {
@@ -1957,18 +2135,17 @@ async function integrate(window) {
             electron_1.ipcMain.handle(`_nwjs_${methodName}`, async (_, ...allArgs) => {
                 console.log(`Execute: ${methodName}`);
                 if (methodName === 'connect') {
-                    if (connection.socket) {
-                        connection.disconnect();
-                    }
-                    try {
-                        (0, server_bootstrap_1.startServer)();
-                    }
-                    catch (ex) {
-                        return [null, ex];
-                    }
-                    const error = await connection.awaitConnection();
-                    if (error) {
-                        return [null, error];
+                    if (!connection.socket) {
+                        try {
+                            (0, server_bootstrap_1.startServer)();
+                        }
+                        catch (ex) {
+                            return [null, ex];
+                        }
+                        const error = await connection.awaitConnection();
+                        if (error) {
+                            return [null, error];
+                        }
                     }
                 }
                 if (!connection.socket) {
@@ -2047,6 +2224,10 @@ async function integrate(window) {
         appendDiagnosticLog('USB disconnect', transferState);
         if (!matchedService)
             return;
+        if (miniDiscModeSwitchInProgress) {
+            appendDiagnosticLog('USB disconnect relaunch suppressed during mode switch', transferState);
+            return;
+        }
         if (transferState.netmdTransfer || transferState.himdTransfer || recentTransferLoss) {
             webusb.clearPreferredDevice();
             recentUsbTransferFailure = null;

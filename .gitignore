@@ -1,5 +1,6 @@
 /dist
 /node_modules
+/node_modules-pnpm-backup
 /build
 /build-*/
 /test-distribution/*.zip
@@ -8,9 +9,14 @@ extras/wmdp-driver-helper.exe
 extras/LIBWDI-SOURCE-v1.5.1-wmdp.zip
 extras/LIBWDI-COPYING-LGPLv3.txt
 extras/WMDP-DRIVER-HELPER-NOTICE.txt
+extras/WMDP-WINUSB-DRIVER-NOTICE.txt
 SOURCE-MODIFICATIONS
 MODIFIED-BUILD-NOTICE.txt
 !custom-overrides/MODIFIED-BUILD-NOTICE.txt
 
 *.local
 EKBROOTS.DES
+/.npmrc
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
+/extras/drivers/

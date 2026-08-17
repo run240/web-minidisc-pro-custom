@@ -70,6 +70,19 @@ exports.CHANGELOG = [
                         args[i] = { interprocessType: 'function' };
                     }
                 }
+                // Electron's invoke serialization can stall when a converted
+                // lossless track is sent as one large ArrayBuffer. Stage Hi-MD
+                // uploads in bounded chunks, then pass a lightweight token.
+                if (name === '_himd_upload' && args[2] instanceof ArrayBuffer) {
+                    const uploadId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                    const bytes = new Uint8Array(args[2]);
+                    await electron_1.ipcRenderer.invoke('beginHiMDUploadStage', uploadId, bytes.byteLength);
+                    const chunkSize = 1024 * 1024;
+                    for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+                        await electron_1.ipcRenderer.invoke('appendHiMDUploadStage', uploadId, bytes.slice(offset, offset + chunkSize));
+                    }
+                    args[2] = { interprocessType: 'stagedHiMDUpload', uploadId };
+                }
                 const [response, error] = await electron_1.ipcRenderer.invoke(name, ...args);
                 if (error)
                     throw error;
@@ -314,7 +327,9 @@ exports.CHANGELOG = [
             else {
                 closeButton.addEventListener('click', () => close(null), { once: true });
             }
-            if (choices.length === 0 && (warning.formatTarget === 'himd' || warning.formatTarget === 'netmd')) {
+            if ((process.platform === 'win32' ||
+                (process.platform === 'darwin' && warning.formatTarget === 'himd')) && choices.length === 0 &&
+                (warning.formatTarget === 'himd' || warning.formatTarget === 'netmd')) {
                 const formatButton = document.createElement('button');
                 formatButton.type = 'button';
                 formatButton.className = 'wmd-warning-format';
@@ -322,14 +337,16 @@ exports.CHANGELOG = [
                 formatButton.addEventListener('click', async () => {
                     formatButton.disabled = true;
                     closeButton.disabled = true;
-                    const originalLabel = formatButton.textContent;
                     formatButton.textContent = '기기 확인 중…';
+                    // The backend opens a second, destructive confirmation via
+                    // showMiniDiscWarning. Close this informational warning first;
+                    // otherwise the single-warning guard returns this same pending
+                    // promise and both sides wait forever.
+                    close(null);
+                    await new Promise(resolve => setTimeout(resolve, 0));
                     try {
                         const result = await electron_1.ipcRenderer.invoke('formatTimedOutMiniDiscMedia', warning.formatTarget);
                         if (result?.cancelled) {
-                            formatButton.disabled = false;
-                            closeButton.disabled = false;
-                            formatButton.textContent = originalLabel;
                             return;
                         }
                         const resultMessage = result?.message || (result?.ok ? '포맷 명령을 완료했습니다.' : '포맷에 실패했습니다.');
@@ -2061,6 +2078,8 @@ exports.CHANGELOG = [
         updateNotice();
     };
     const installNetMDFormatButton = () => {
+        if (process.platform !== 'win32' && process.platform !== 'darwin')
+            return;
         for (const dialog of document.querySelectorAll('[role="dialog"]')) {
             const text = dialog.textContent || '';
             if (!text.includes('NetMD 모드로 연결할 수 없습니다') ||
@@ -2152,6 +2171,8 @@ exports.CHANGELOG = [
         }
     };
     const installHiMDFormatButton = () => {
+        if (process.platform !== 'win32')
+            return;
         for (const dialog of document.querySelectorAll('[role="dialog"]')) {
             const text = dialog.textContent || '';
             if ((!text.includes('Hi-MD 모드로 연결할 수 없습니다') &&

@@ -33,11 +33,12 @@ export function startOutsideElectron(executablePath: string, applicationRoot: st
     if(process.env.EWMD_HIMD_BYPASS_COHERENCY_CHECK) {
         envs += ` EWMD_HIMD_BYPASS_COHERENCY_CHECK=${process.env.EWMD_HIMD_BYPASS_COHERENCY_CHECK}`;
     }
-    // Many people know part of the famous quote: "Think different...", but not many know the whole thing:
-    // "Think different... Think of all the different ways we can take something simple and fuck it up"
-    // Export critical env vars before invoking sudo; -E preserves them across the boundary
-    const fullCommand = `${envs} "${executablePath}" "${serverPath}" "${userDataPath}" && exit`;
-    const osa = `tell application "Terminal" \n activate \n do script "echo ${btoa(fullCommand)} | base64 -d | sudo -E zsh; exit"\nend tell`;
+    const fullCommand = `${envs} "${executablePath}" "${serverPath}" "${userDataPath}"`;
+    const encodedCommand = Buffer.from(fullCommand, 'utf8').toString('base64');
+    const privilegedCommand = `echo '${encodedCommand}' | /usr/bin/base64 -D | /bin/zsh`;
+    // Use macOS's native authorization dialog. This keeps Terminal closed and
+    // leaves the elevated helper attached to osascript until the socket exits.
+    const osa = `do shell script "${privilegedCommand}" with administrator privileges`;
     
     return spawn('/usr/bin/osascript', ['-e', osa]);
 }
@@ -110,9 +111,16 @@ export class Connection {
         this.earlyTerminate = false;
         console.log("Waiting for server to start...");
         await new Promise<void>(res => {
-            let interval = setInterval(() => {
+            let interval: NodeJS.Timeout;
+            const timeout = setTimeout(() => {
+                this.earlyTerminate = true;
+                clearInterval(interval);
+                res();
+            }, 30000);
+            interval = setInterval(() => {
                 try{
                     if(this.earlyTerminate || fs.statSync(getSocketPath()).isSocket()){
+                        clearTimeout(timeout);
                         clearInterval(interval);
                         res();
                         return;

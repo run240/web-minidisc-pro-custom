@@ -62,7 +62,8 @@ class WebUSBDevice {
                 return;
             }
             this.device.open();
-            if ((0, os_1.platform)() !== 'win32') {
+            if ((0, os_1.platform)() !== 'win32' &&
+                typeof this.device.setAutoDetachKernelDriver === 'function') {
                 this.device.setAutoDetachKernelDriver(this.autoDetachKernelDriver);
             }
         }
@@ -245,6 +246,7 @@ class WebUSBDevice {
         try {
             this.checkDeviceOpen();
             const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_IN);
+            endpoint.timeout = Math.max(endpoint.timeout || 0, 10000);
             const result = await endpoint.transferAsync(length);
             return {
                 data: result ? new DataView(new Uint8Array(result).buffer) : undefined,
@@ -269,6 +271,7 @@ class WebUSBDevice {
         try {
             this.checkDeviceOpen();
             const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_OUT);
+            endpoint.timeout = Math.max(endpoint.timeout || 0, 10000);
             const buffer = Buffer.from(data);
             const bytesWritten = await endpoint.transferAsync(buffer);
             return {

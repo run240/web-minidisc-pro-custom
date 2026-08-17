@@ -1,6 +1,6 @@
-# Web MiniDisc Pro — Windows Custom Build
+# Web MiniDisc Pro — Windows Custom + Intel macOS Build
 
-An unofficial, non-commercial Windows build of
+An unofficial, non-commercial Windows and Intel macOS build of
 [ElectronWMD](https://github.com/asivery/ElectronWMD) and
 [Web MiniDisc Pro](https://github.com/asivery/webminidisc), focused on
 NetMD/Hi-MD device support and an integrated WinUSB installation flow.
@@ -16,6 +16,11 @@ as a portable x64 ZIP. The current portable build is unsigned; open-source
 code-signing is not currently active. A SignPath-compatible workflow is
 included for possible future use, but no signing certificate has been issued
 to this project.
+
+An experimental unsigned Intel macOS (`x64`) DMG is also published in Releases.
+It supports NetMD and Hi-MD through the native macOS USB stack and a privileged
+Hi-MD helper. Apple Silicon is not currently packaged; Rosetta use has not been
+validated for this release.
 
 ## Main changes
 
@@ -39,6 +44,10 @@ to this project.
 - Windows-focused theme, icons, loading screen, dialogs, and context menus,
   including light-theme text contrast fixes
 - Window position and monitor restoration across mode changes
+- Intel macOS NetMD/Hi-MD connection, recording, upload, and USB-mode switching
+- Intel macOS conversion of standard 60/74/80-minute MD media between NetMD and
+  Hi-MD formats, with destructive-operation confirmations
+- Native macOS administrator authorization without opening Terminal windows
 
 ## Screenshots
 
@@ -100,6 +109,35 @@ npm run pack:custom
 ```
 
 The unpacked application is written to `build\win-unpacked`.
+
+## Building on Intel macOS
+
+Requirements:
+
+- Intel Mac
+- Node.js 20 or newer
+- Xcode Command Line Tools
+
+```bash
+npm install --legacy-peer-deps
+node scripts/build-custom.mjs
+npx electron-builder --mac dmg --x64 --publish never
+```
+
+The DMG is written under `build/`. The distributed app is currently unsigned,
+so macOS may require Control-clicking the app and choosing **Open** on first run.
+Hi-MD access displays the standard macOS administrator authorization dialog.
+
+### macOS media-format warning
+
+Formatting erases every track and title on the disc. Only standard
+60/74/80-minute MD media can be converted back to NetMD format; 1 GB Hi-MD-only
+media cannot. Back up irreplaceable recordings and test with expendable media
+before using format or mode-conversion controls.
+
+The macOS implementation is device-family based rather than MZ-NH900-specific.
+Testing so far includes Sony MZ-NH900 and MZ-RH1 hardware, but other supported
+Hi-MD models still need community verification.
 
 For the signing workflow and SignPath configuration, see
 [PUBLIC-SIGNING.md](PUBLIC-SIGNING.md).

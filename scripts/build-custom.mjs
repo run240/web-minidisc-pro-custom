@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const packageRunner = process.env.PNPM_EXECUTABLE
+  ? process.env.PNPM_EXECUTABLE
+  : process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const packageRunnerPrefix = process.env.PNPM_EXECUTABLE ? ['exec'] : [];
 
 function run(command, args, options = {}) {
   const useWindowsCommandShell =
@@ -126,7 +129,10 @@ copy(
 run(process.execPath, [
   join(root, 'custom-overrides', 'patches', 'patch-node-mass-storage.mjs'),
 ]);
-run(npx, ['tsc']);
+run(process.execPath, [
+  join(root, 'custom-overrides', 'patches', 'patch-himd-auth-logging.mjs'),
+]);
+run(packageRunner, [...packageRunnerPrefix, 'tsc']);
 
 copy(join(root, 'custom-overrides', 'dist'), join(root, 'dist'));
 // Electron's sandboxed preload can only require a small allow-list of modules.

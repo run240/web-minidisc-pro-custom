@@ -10,6 +10,25 @@ import { getPidPath, getSocketDir, getSocketPath } from './socket-path';
 const socketName = getSocketPath();
 const pidFile = getPidPath();
 const workDir = getSocketDir();
+const diagnosticPath = path.join(process.argv[2], 'wmd-himd-helper.log');
+const appendDiagnostic = (...values: any[]) => {
+    try {
+        const line = values.map(value => value instanceof Error
+            ? `${value.stack ?? value.message}`
+            : typeof value === 'string' ? value : JSON.stringify(value)).join(' ');
+        fs.appendFileSync(diagnosticPath, `[${new Date().toISOString()}] ${line}\n`);
+    } catch (_) {}
+};
+const originalConsoleLog = console.log.bind(console);
+const originalConsoleError = console.error.bind(console);
+console.log = (...values: any[]) => {
+    appendDiagnostic(...values);
+    originalConsoleLog(...values);
+};
+console.error = (...values: any[]) => {
+    appendDiagnostic(...values);
+    originalConsoleError(...values);
+};
 const canFail = (func: () => void) => {
     try{ func() } catch(_){}
 }
@@ -20,6 +39,7 @@ function closeAll(){
     process.exit();
 }
 function main() {
+    appendDiagnostic('helper starting', { pid: process.pid });
     console.log("ElectronWMD's MacOS SCSI intermediate server by asivery");
     console.log("Starting up...");
     console.log(`Base dir: ${workDir}`);
@@ -102,6 +122,7 @@ function main() {
 
         unpackerStream.on('data', async ({ service, name, allArgs }: { service: string, name: string, allArgs: any[] }) => {
             console.log(`Call to ${name}`);
+            appendDiagnostic('call started', { service, name, argumentBytes: allArgs.map(value => value?.byteLength ?? null) });
             for (let i = 0; i < allArgs.length; i++) {
                 if (allArgs[i]?.interprocessType === 'function') {
                     allArgs[i] = async (...args: any[]) =>
@@ -112,11 +133,50 @@ function main() {
             }
             let res;
             try {
+                if (service === 'himd' && name === 'upload') {
+                    let audio = allArgs[2];
+                    if (audio?.interprocessType === 'stagedHiMDUploadFile') {
+                        const userDataRoot = path.resolve(process.argv[2]);
+                        const candidate = path.resolve(String(audio.path));
+                        if (path.dirname(candidate) !== userDataRoot || !path.basename(candidate).startsWith('himd-upload-'))
+                            throw new Error('허용되지 않은 Hi-MD 임시 파일 경로입니다.');
+                        const fileBuffer = fs.readFileSync(candidate);
+                        canFail(() => fs.unlinkSync(candidate));
+                        if (fileBuffer.byteLength !== audio.bytes)
+                            throw new Error('Hi-MD 임시 음원 파일 크기가 올바르지 않습니다.');
+                        audio = fileBuffer;
+                        allArgs[2] = audio;
+                        appendDiagnostic('Hi-MD staged upload file loaded', { bytes: fileBuffer.byteLength });
+                    }
+                    appendDiagnostic('Hi-MD upload payload received', {
+                        type: Object.prototype.toString.call(audio),
+                        constructor: audio?.constructor?.name,
+                        bytes: audio?.byteLength ?? null,
+                        isView: ArrayBuffer.isView(audio),
+                    });
+                    let source: Uint8Array;
+                    if (ArrayBuffer.isView(audio)) {
+                        source = new Uint8Array(audio.buffer, audio.byteOffset, audio.byteLength);
+                    } else if (audio instanceof ArrayBuffer) {
+                        source = new Uint8Array(audio);
+                    } else {
+                        throw new TypeError(`Invalid Hi-MD audio payload: ${Object.prototype.toString.call(audio)}`);
+                    }
+                    // msgpackr may reconstruct an ArrayBuffer on top of memory
+                    // marked non-transferable by Node's Buffer pool. Always
+                    // allocate a fresh backing store for Worker.postMessage.
+                    const copy = new Uint8Array(source.byteLength);
+                    copy.set(source);
+                    allArgs[2] = copy.buffer;
+                    appendDiagnostic('Hi-MD upload payload normalized', { bytes: copy.byteLength });
+                }
                 const serviceObject = service === 'nwjs' ? nwDevice : himdDevice;
                 res = [await (serviceObject as any)[name](...allArgs), null];
+                appendDiagnostic('call completed', { service, name });
             } catch (err) {
                 console.log("Node Error: ");
                 console.log(err);
+                appendDiagnostic('call failed', { service, name }, err);
                 res = [null, err];
             }
 
