@@ -210,6 +210,14 @@ button[data-wmd-mode-card]:focus-visible {
 
 [data-wmd-diagnostics] {
   margin-top: 14px !important;
+  color: var(--wmd-text-muted) !important;
+}
+
+[data-wmd-diagnostics] .MuiTypography-root,
+[data-wmd-diagnostics] .MuiFormHelperText-root,
+[data-wmd-diagnostics] p,
+[data-wmd-diagnostics] span {
+  color: var(--wmd-text-muted) !important;
 }
 
 [data-wmd-shell] .MuiButton-root,

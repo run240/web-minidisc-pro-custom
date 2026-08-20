@@ -228,7 +228,7 @@ class WebUSBDevice {
     async controlTransferIn(setup, length) {
         this.checkDeviceOpen();
         const type = this.controlTransferParamsToType(setup, usb.LIBUSB_ENDPOINT_IN);
-        for (let attempt = 0; attempt < 2; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const result = await this.controlTransferAsync(type, setup.request, setup.value, setup.index, length);
                 return {
@@ -293,9 +293,11 @@ class WebUSBDevice {
             // seconds for media authentication, while the NH900 can spend the
             // same amount of time committing ICV data after an upload. Keep
             // the longer timeout scoped to the observed models on macOS.
+            const isUnrestrictedHiMD = this.vendorId === 0x5341 && this.productId === 0x5256;
             const needsSlowHiMDTimeout = (0, os_1.platform)() === 'darwin' &&
-                this.vendorId === 0x054c &&
-                (this.productId === 0x017f || this.productId === 0x0183);
+                ((this.vendorId === 0x054c &&
+                    (this.productId === 0x017f || this.productId === 0x0183)) ||
+                    isUnrestrictedHiMD);
             endpoint.timeout = Math.max(endpoint.timeout || 0, needsSlowHiMDTimeout ? 60000 : 10000);
             const result = await endpoint.transferAsync(length);
             return {
@@ -318,31 +320,61 @@ class WebUSBDevice {
         }
     }
     async transferOut(endpointNumber, data) {
-        try {
-            this.checkDeviceOpen();
-            const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_OUT);
-            // MZ-NH1 (054c:017f) can hold the first mass-storage command while
-            // waking and validating an otherwise healthy Hi-MD filesystem.
-            // Do not retry the command because a timed-out bulk write may have
-            // been partially accepted; only extend its completion window.
-            const isNH1OnMac = (0, os_1.platform)() === 'darwin' &&
-                this.vendorId === 0x054c && this.productId === 0x017f;
-            endpoint.timeout = Math.max(endpoint.timeout || 0, isNH1OnMac ? 60000 : 10000);
-            const buffer = Buffer.from(data);
-            const bytesWritten = await endpoint.transferAsync(buffer);
-            return {
-                bytesWritten,
-                status: 'ok'
-            };
-        }
-        catch (error) {
-            if (error.errno === usb.LIBUSB_TRANSFER_STALL) {
+        this.checkDeviceOpen();
+        const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_OUT);
+        const isNH1OnMac = (0, os_1.platform)() === 'darwin' &&
+            this.vendorId === 0x054c && this.productId === 0x017f;
+        const isUnrestrictedHiMDOnMac = (0, os_1.platform)() === 'darwin' &&
+            this.vendorId === 0x5341 && this.productId === 0x5256;
+        endpoint.timeout = Math.max(endpoint.timeout || 0,
+            isNH1OnMac || isUnrestrictedHiMDOnMac ? 60000 : 10000);
+        const buffer = Buffer.from(data);
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const bytesWritten = await endpoint.transferAsync(buffer);
                 return {
-                    bytesWritten: 0,
-                    status: 'stall'
+                    bytesWritten,
+                    status: 'ok'
                 };
             }
-            throw new Error(`transferOut error: ${error}`);
+            catch (error) {
+                const isPipe = error.errno === usb.LIBUSB_ERROR_PIPE ||
+                    String(error).includes('LIBUSB_ERROR_PIPE');
+                const isTimeout = error.errno === usb.LIBUSB_TRANSFER_TIMED_OUT ||
+                    String(error).includes('LIBUSB_TRANSFER_TIMED_OUT');
+                const isMassStorageCBW = buffer.length === 31 &&
+                    buffer[0] === 0x55 && buffer[1] === 0x53 &&
+                    buffer[2] === 0x42 && buffer[3] === 0x43;
+                // The patched vendor-class Hi-MD descriptor avoids Apple's
+                // mass-storage driver, but early Hn firmware halts Bulk-Out
+                // before many CBWs. Clear the halt and retry the rejected
+                // transfer once; LIBUSB_ERROR_PIPE reports no accepted data.
+                // A timed-out 31-byte BOT command wrapper is also safe to
+                // retry after libusb has cancelled it. Never retry a timed-out
+                // audio/data payload because its accepted length is unknown.
+                const canRecover = isUnrestrictedHiMDOnMac && attempt < 2 &&
+                    (isPipe || (isTimeout && isMassStorageCBW));
+                if (canRecover) {
+                    console.log('MZ-NH1 unrestricted Bulk-Out recovery.', {
+                        attempt: attempt + 1,
+                        reason: isPipe ? 'pipe' : 'timeout',
+                        bytes: buffer.length,
+                        cdbOpcode: isMassStorageCBW ? buffer[15] : null,
+                    });
+                    await this.clearHalt('out', endpointNumber);
+                    // Hn1.100 needs a short settling period after CLEAR_HALT;
+                    // an immediate resubmit can simply stall again.
+                    await new Promise(resolve => setTimeout(resolve, isTimeout ? 300 : 40));
+                    continue;
+                }
+                if (error.errno === usb.LIBUSB_TRANSFER_STALL || isPipe) {
+                    return {
+                        bytesWritten: 0,
+                        status: 'stall'
+                    };
+                }
+                throw new Error(`transferOut error: ${error}`);
+            }
         }
     }
     async reset() {

@@ -15,6 +15,7 @@ import prompt from 'electron-prompt';
 import { EKBROOTS } from 'networkwm-js/dist/encryption';
 import { Mutex } from 'async-mutex';
 import { WebUSBInterop } from './wusb-interop';
+import { buildCompactConnectionDiagnostics, getMiniDiscDiagnostics } from './device-diagnostics';
 
 const getOfRenderer = (...p: string[]) => path.join(__dirname, '..', 'renderer', ...p);
 
@@ -323,6 +324,14 @@ async function integrate(window: BrowserWindow) {
     let factoryDefList: string[] = [];
 
     ipcMain.handle('reload', reload.bind(null, window));
+    ipcMain.handle('getMiniDiscDiagnostics', () => getMiniDiscDiagnostics());
+    ipcMain.handle('buildCompactConnectionDiagnostics', (_event, errorMessage: unknown) =>
+        buildCompactConnectionDiagnostics({
+            appVersion: app.getVersion(),
+            errorMessage: String(errorMessage ?? ''),
+            userDataPath: app.getPath('userData'),
+        }),
+    );
 
     ipcMain.handle('_switchToFactory', async () => {
         factoryIface = await service.factory();

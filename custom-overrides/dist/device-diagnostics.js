@@ -1,6 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getMiniDiscDiagnostics = getMiniDiscDiagnostics;
+exports.buildCompactConnectionDiagnostics = buildCompactConnectionDiagnostics;
+const fs_1 = __importDefault(require("fs"));
+const os_1 = __importDefault(require("os"));
+const path_1 = __importDefault(require("path"));
 const usb_1 = require("usb");
 const himd_js_1 = require("himd-js");
 const netmd_js_1 = require("netmd-js");
@@ -69,13 +76,13 @@ function describeMiniDiscDevice(vendorId, productId, windowsDrivers, transport) 
     const isNetMD = Boolean(netMDDefinition);
     const isSony = vendorId === 0x054c;
     const isVirtualExploitDevice = vendorId === 0x5341 && productId === 0x5256;
-    if ((!isHiMD && !isNetMD) || isVirtualExploitDevice)
+    if (!isHiMD && !isNetMD && !isVirtualExploitDevice)
         return null;
     const modelNames = [...new Set([netMDDefinition === null || netMDDefinition === void 0 ? void 0 : netMDDefinition.name, hiMDDefinition === null || hiMDDefinition === void 0 ? void 0 : hiMDDefinition.name].filter(Boolean))];
     return Object.assign({ vendorId,
-        productId, vendorIdHex: toHex(vendorId), productIdHex: toHex(productId), busNumber: transport === null || transport === void 0 ? void 0 : transport.busNumber, deviceAddress: transport === null || transport === void 0 ? void 0 : transport.deviceAddress, mode: isHiMD ? 'himd' : isNetMD ? 'netmd' : isSony ? 'sony-usb' : 'unknown', isSony, modelHint: vendorId === 0x054c && (productId === 0x0219 || productId === 0x021a)
+        productId, vendorIdHex: toHex(vendorId), productIdHex: toHex(productId), busNumber: transport === null || transport === void 0 ? void 0 : transport.busNumber, deviceAddress: transport === null || transport === void 0 ? void 0 : transport.deviceAddress, portNumbers: transport === null || transport === void 0 ? void 0 : transport.portNumbers, mode: isHiMD || isVirtualExploitDevice ? 'himd' : isNetMD ? 'netmd' : isSony ? 'sony-usb' : 'unknown', isSony: isSony || isVirtualExploitDevice, modelHint: vendorId === 0x054c && (productId === 0x0219 || productId === 0x021a)
             ? 'Sony MZ-RH10 / MZ-M100'
-            : modelNames.join(' / ') || (transport === null || transport === void 0 ? void 0 : transport.name) || 'MiniDisc USB Device', supportsNetMD: isNetMD, supportsHiMD: isHiMD, requiredDriver: 'WinUSB' }, getWindowsDriverStatus(windowsDrivers, vendorId, productId));
+            : modelNames.join(' / ') || (transport === null || transport === void 0 ? void 0 : transport.name) || 'MiniDisc USB Device', supportsNetMD: isNetMD, supportsHiMD: isHiMD || isVirtualExploitDevice, requiredDriver: 'WinUSB' }, getWindowsDriverStatus(windowsDrivers, vendorId, productId));
 }
 function getMiniDiscDiagnostics() {
     const windowsDrivers = inspectWindowsUsbDrivers();
@@ -121,5 +128,126 @@ function getMiniDiscDiagnostics() {
         devices,
         guidance,
     };
+}
+function readLogTail(filePath, maximumBytes) {
+    try {
+        const size = fs_1.default.statSync(filePath).size;
+        const length = Math.min(size, maximumBytes);
+        const buffer = Buffer.alloc(length);
+        const file = fs_1.default.openSync(filePath, 'r');
+        try {
+            fs_1.default.readSync(file, buffer, 0, length, Math.max(0, size - length));
+        }
+        finally {
+            fs_1.default.closeSync(file);
+        }
+        return buffer.toString('utf8').replace(/^.*\uFFFD/u, '');
+    }
+    catch (_) {
+        return '';
+    }
+}
+function readCommand(command, args) {
+    try {
+        return (0, child_process_1.execFileSync)(command, args, {
+            encoding: 'utf8',
+            timeout: 2500,
+            windowsHide: true,
+        }).trim();
+    }
+    catch (_) {
+        return '';
+    }
+}
+function redactDiagnosticText(value) {
+    const home = os_1.default.homedir();
+    let output = String(value !== null && value !== void 0 ? value : '');
+    if (home)
+        output = output.split(home).join('<HOME>');
+    return output
+        .replace(/\/Users\/[^/\s"']+/g, '/Users/<USER>')
+        .replace(/\\Users\\[^\\\s"']+/gi, '\\Users\\<USER>')
+        .replace(/("?(?:serial(?: number)?|USB Serial Number)"?\s*[:=]\s*)[^\s,}\]]+/gi, '$1<REDACTED>');
+}
+function describeIOReturns(errorMessage) {
+    const symbols = {
+        0xe00002c1: 'kIOReturnNotPrivileged',
+        0xe00002c5: 'kIOReturnExclusiveAccess',
+        0xe00002c9: 'kIOReturnInternalError',
+        0xe00002d5: 'kIOReturnBusy',
+        0xe00002d6: 'kIOReturnTimeout',
+        0xe00002d8: 'kIOReturnNotReady',
+        0xe00002d9: 'kIOReturnNotAttached',
+        0xe00002e2: 'kIOReturnNotPermitted',
+    };
+    const codes = new Set();
+    for (const match of errorMessage.matchAll(/(?:"code"\s*:|\bcode\s*=)\s*(-?\d+)/gi)) {
+        codes.add(Number(match[1]));
+    }
+    return [...codes].map(code => {
+        var _a;
+        const unsigned = code >>> 0;
+        const hex = `0x${unsigned.toString(16).padStart(8, '0')}`;
+        return `${code} · ${hex} · ${(_a = symbols[unsigned]) !== null && _a !== void 0 ? _a : 'unknown IOReturn'}`;
+    });
+}
+function buildCompactConnectionDiagnostics(options) {
+    var _a, _b;
+    const diagnostics = getMiniDiscDiagnostics();
+    const macProductVersion = process.platform === 'darwin'
+        ? readCommand('/usr/bin/sw_vers', ['-productVersion'])
+        : '';
+    const macBuildVersion = process.platform === 'darwin'
+        ? readCommand('/usr/bin/sw_vers', ['-buildVersion'])
+        : '';
+    const hardwareModel = process.platform === 'darwin'
+        ? readCommand('/usr/sbin/sysctl', ['-n', 'hw.model'])
+        : '';
+    const cpuModel = ((_b = (_a = os_1.default.cpus()[0]) === null || _a === void 0 ? void 0 : _a.model) === null || _b === void 0 ? void 0 : _b.trim()) || 'unknown';
+    const deviceLines = diagnostics.devices.length
+        ? diagnostics.devices.map(device => {
+            var _a, _b, _c, _d;
+            const usbPath = ((_a = device.portNumbers) === null || _a === void 0 ? void 0 : _a.length)
+                ? device.portNumbers.join('.')
+                : `${(_b = device.busNumber) !== null && _b !== void 0 ? _b : '?'}-${(_c = device.deviceAddress) !== null && _c !== void 0 ? _c : '?'}`;
+            const route = ((_d = device.portNumbers) === null || _d === void 0 ? void 0 : _d.length)
+                ? `${usbPath}${device.portNumbers.length > 1 ? ' (hub path)' : ' (root port)'}`
+                : usbPath;
+            return [
+                device.modelHint,
+                `${device.vendorIdHex}:${device.productIdHex}`,
+                device.mode,
+                `USB ${route}`,
+                device.driverName || device.driverStatus,
+            ].filter(Boolean).join(' · ');
+        })
+        : ['MiniDisc USB device not visible to libusb'];
+    const ioReturns = describeIOReturns(options.errorMessage);
+    const helperTail = readLogTail(path_1.default.join(options.userDataPath, 'wmd-himd-helper.log'), 2600);
+    const appTail = readLogTail(path_1.default.join(options.userDataPath, 'wmd-diagnostic.log'), 1200);
+    const lines = [
+        'Web MiniDisc Pro · connection diagnostics',
+        `time=${new Date().toISOString()}`,
+        `app=${options.appVersion}`,
+        `platform=${process.platform} arch=${process.arch}`,
+        `os=${macProductVersion || os_1.default.release()} build=${macBuildVersion || os_1.default.version()}`,
+        `hardware=${hardwareModel || 'unknown'}`,
+        `cpu=${cpuModel}`,
+        '',
+        '[error]',
+        options.errorMessage || 'No error text was available.',
+        ...(ioReturns.length ? ['', '[decoded IOReturn]', ...ioReturns] : []),
+        '',
+        '[MiniDisc USB]',
+        ...deviceLines,
+        ...(helperTail ? ['', '[Hi-MD helper log tail]', helperTail] : []),
+        ...(appTail ? ['', '[app diagnostic log tail]', appTail] : []),
+    ];
+    const report = redactDiagnosticText(lines.join('\n').replace(/\n{3,}/g, '\n\n').trim());
+    const maximumCharacters = 7000;
+    const marker = '\n[truncated to 7000 characters]';
+    return report.length <= maximumCharacters
+        ? report
+        : `${report.slice(0, maximumCharacters - marker.length)}${marker}`;
 }
 //# sourceMappingURL=device-diagnostics.js.map

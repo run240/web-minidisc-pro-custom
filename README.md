@@ -17,10 +17,51 @@ code-signing is not currently active. A SignPath-compatible workflow is
 included for possible future use, but no signing certificate has been issued
 to this project.
 
-An experimental unsigned Intel macOS (`x64`) DMG is also published in Releases.
-It supports NetMD and Hi-MD through the native macOS USB stack and a privileged
-Hi-MD helper. Apple Silicon is not currently packaged; Rosetta use has not been
-validated for this release.
+The tested Intel macOS (`x64`) v12 DMG is available from the
+[Intel macOS Hi-MD v12 release](https://github.com/run240/web-minidisc-pro-windows-custom/releases/tag/macos-intel-himd-v12).
+It supports NetMD and Hi-MD through the native macOS USB stack, including a
+volatile RAM-patch path for Sony Hi-MD devices whose normal storage interface is
+claimed by macOS. Apple Silicon is not currently packaged or supported.
+
+## Intel macOS Hi-MD v12 안내
+
+![Intel macOS v12 home and mode selection](docs/images/macos-intel-v12-home.png)
+
+### 주요 기능
+
+- NetMD 녹음, 제목·그룹 편집, 트랙 내려받기
+- Hi-MD/1GB Hi-MD 미디어 읽기, 편집, 삭제 및 음악 전송
+- FLAC/WAV 변환 전송과 Hi-MD PCM 전송
+- Sony Hi-MD 호환 펌웨어의 임시 RAM 패치 및 USB 클래스 우회
+- 기존 미디어를 지우지 않는 **RAM 패치만 적용** 절차
+- 일반 60/74/80분 MD를 Hi-MD 형식으로 포맷하거나 다시 NetMD로 초기화
+- USB 점유·전송 지연·장치 정보를 1만 자 이내로 복사하는 연결 진단
+- 한국어 안내, 포맷 확인창, 99% 마무리 구간 및 오류 복구 안내
+
+### 설치
+
+1. 위 v12 릴리스에서 `WMDP Intel Hi-MD RAM Patch v12.dmg`를 받습니다.
+2. DMG를 열고 `Web MiniDisc Pro.app`을 `Applications`로 드래그합니다.
+3. 최초 실행은 Finder의 응용 프로그램에서 앱을 **Control-클릭 → 열기**로 실행합니다.
+4. Hi-MD 연결 시 macOS 관리자 암호 창이 나오면 허용합니다.
+
+이 DMG는 Apple Developer ID 공증을 받지 않은 개인용 오픈소스 빌드입니다.
+자세한 미디어 교체·RAM 패치·포맷 순서는
+[Intel Mac Hi-MD 사용 설명서](docs/INTEL_MAC_HIMD_GUIDE_KO.md)를 먼저 읽어주세요.
+
+### 원본 ElectronWMD와의 차이
+
+| 항목 | 원본 ElectronWMD | 이 Intel macOS v12 빌드 |
+| --- | --- | --- |
+| macOS Hi-MD USB | 일반 libusb/대용량 저장장치 경로 | IOUSBHost 기반 native helper와 Apple 드라이버 점유 진단 |
+| Sony Hi-MD 모드 전환 | 기기·OS 상태에 따라 수동 복구 필요 | 호환 펌웨어 확인 후 임시 RAM 패치와 USB 클래스 우회 |
+| 기존 Hi-MD 미디어 | 연결 모드가 맞아야 접근 | 일반 MD에서 패치만 적용한 뒤, 전원을 유지하고 미디어 교체 가능 |
+| 일반 MD 포맷 | 기본 포맷 기능 | 패치만 적용과 전체 삭제 포맷을 분리하고 진행 상태 표시 |
+| 오류 처리 | 원래 오류창과 개발자 로그 중심 | 한국어 복구 안내, 제한 시간, 재연결 정리, 진단 정보 복사 |
+| 검증 범위 | 업스트림 범용 지원 | MZ-NH1은 Intel Sonoma/Tahoe, MZ-RH10은 Intel Tahoe에서 실기 검증 |
+
+RAM 패치는 기기 전원이 완전히 꺼지면 사라지지만 미디어의 음악은 지우지 않습니다.
+반면 `일반 MD를 지우고 Hi-MD로 포맷`과 NetMD 초기화는 실제로 모든 곡을 삭제합니다.
 
 ## Main changes
 
@@ -50,6 +91,10 @@ validated for this release.
 - Native macOS administrator authorization without opening Terminal windows
 - Native macOS whole-device capture for Hi-MD units whose mass-storage
   interface cannot be released reliably through libusb alone
+- Non-destructive RAM-patch-only preparation for swapping to an existing Hi-MD
+  disc without formatting the standard MD used to enter NetMD mode
+- Firmware-capability-based RAM patching validated on Sony MZ-NH1 and MZ-RH10
+- Compact copyable connection diagnostics designed for chat-based support
 
 ## Screenshots
 
@@ -137,11 +182,15 @@ Formatting erases every track and title on the disc. Only standard
 media cannot. Back up irreplaceable recordings and test with expendable media
 before using format or mode-conversion controls.
 
-The macOS implementation is device-family based rather than MZ-NH900-specific.
-Testing so far includes Sony MZ-NH1, MZ-NH900, and MZ-RH1 hardware, but other
-supported Hi-MD models still need community verification. The investigation,
-transport design, validation matrix, and remaining MZ-NH600D work are recorded
-in the [Intel macOS Hi-MD native transport work log](docs/MACOS_HIMD_NATIVE_CAPTURE_WORKLOG.md).
+The current RAM-patch path is selected by firmware capability rather than a
+single product ID. The final v12 workflow has been tested with Sony MZ-NH1 on
+Intel macOS Sonoma and Tahoe, and with MZ-RH10 on Intel macOS Tahoe. Validation
+includes PCM upload, playback, mode changes, existing Hi-MD media, and
+standard-MD Hi-MD formatting. Other listed Sony Hi-MD models remain
+community-test candidates. See the
+[Intel Mac Hi-MD guide](docs/INTEL_MAC_HIMD_GUIDE_KO.md),
+[v12 release notes](docs/MACOS_INTEL_HIMD_V12_RELEASE_NOTES_KO.md), and
+[native transport work log](docs/MACOS_HIMD_NATIVE_CAPTURE_WORKLOG.md).
 
 For the signing workflow and SignPath configuration, see
 [PUBLIC-SIGNING.md](PUBLIC-SIGNING.md).

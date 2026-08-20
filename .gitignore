@@ -20,3 +20,6 @@ EKBROOTS.DES
 /pnpm-lock.yaml
 /pnpm-workspace.yaml
 /extras/drivers/
+/extras/wmd-scsi-helper
+/work/
+/.DS_Store

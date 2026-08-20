@@ -99,9 +99,28 @@ adapts the helper's line protocol to the small WebUSB surface expected by the
 existing Hi-MD mass-storage layer.  Helper stderr is preserved so failures now
 show the actual stage and IOKit code instead of only `helper exited (1)`.
 
+Interface teardown after whole-device capture is asynchronous.  A fixed 250 ms
+delay worked on the original test Mac, but repeated tests on two Intel systems
+found the same MZ-NH1 interface registry ID with `busyState=0` for eight seconds
+while every open returned `0xe00002c9` (`kIOReturnInternalError`).  This ruled
+out a simple timing race: the visible child was the terminated, permanently
+unusable interface object.  The helper now reapplies the captured device's
+current USB configuration with interface matching enabled, ignores the stale
+registry ID, and waits for the newly published child interface.  Each attempt
+records elapsed time, registry entry ID, busy state, and the IOKit error for
+compact remote diagnostics.
+
 The helper runs with administrator authorization because whole-device capture
 requires root privileges when the app has no Apple VM device-access
 entitlement.  No Terminal window is required.
+
+On an Intel MacBookPro16,1 running macOS 26.5.2 (build 25F84), the MZ-NH1 did
+not publish a replacement `IOUSBHostInterface` while whole-device capture was
+active, even after 30 seconds.  `IOUSBHostObjectDestroyOptionsDeviceSurrender`
+also left only the terminated registry object visible, and attempting to reopen
+that terminated object caused IOUSBHost.framework to abort the helper.  This is
+a macOS 26/Tahoe result and must not be treated as a Sonoma 14 regression until
+the same build is tested on an actual Sonoma system.
 
 ## Device matching
 
@@ -118,6 +137,24 @@ models expose different subclasses.  This avoids making the build specific to
 MZ-NH1, MZ-NH900, or MZ-RH1.
 
 ## Validation performed
+
+### MZ-RH10 / MZ-M100 (`054c:0219` → `5341:5256`)
+
+Validated on an Intel MacBookPro16,1 running macOS 26.5.2 using the
+firmware-gated `HiMDUSBClassOverride` path:
+
+- NetMD connection at `054c:0219`
+- automatic firmware compatibility check and volatile RAM patch
+- standard MD conversion to Hi-MD and re-enumeration at `5341:5256`
+- Hi-MD filesystem connection and a 34.2 MB PCM upload
+- conversion back to NetMD at `054c:0219`
+- replacement with an existing Hi-MD medium and successful `5341:5256` connection
+
+The normal RH10 Hi-MD identity `054c:021a` remained owned by Apple's storage
+stack and returned `0xe00002c9` when the native helper attempted to open its
+interface. The unrestricted vendor-class identity avoids that owner conflict.
+The RAM patch is now selected by the exploit library's firmware compatibility
+result instead of an NH1-only USB product-ID check.
 
 ### MZ-NH1 (`054c:017f`)
 

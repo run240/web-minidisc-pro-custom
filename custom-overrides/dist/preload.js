@@ -344,31 +344,52 @@ exports.CHANGELOG = [
                     // promise and both sides wait forever.
                     close(null);
                     await new Promise(resolve => setTimeout(resolve, 0));
+                    let progress = null;
+                    const onFormatProgress = (_event, value) => {
+                        // The backend emits "checking" before it asks for the
+                        // destructive confirmation. Start blocking the mode
+                        // cards as soon as that confirmation is accepted.
+                        if (value?.stage === 'checking')
+                            return;
+                        if (!progress)
+                            progress = showMiniDiscFormatProgress('Hi-MD 준비 진행 중');
+                        progress.update(value);
+                    };
+                    electron_1.ipcRenderer.on('himd-format-progress', onFormatProgress);
                     try {
                         const result = await electron_1.ipcRenderer.invoke('formatTimedOutMiniDiscMedia', warning.formatTarget);
                         if (result?.cancelled) {
                             return;
                         }
-                        const resultMessage = result?.message || (result?.ok ? '포맷 명령을 완료했습니다.' : '포맷에 실패했습니다.');
-                        close();
-                        setTimeout(async () => {
-                            await showMiniDiscWarning({
-                                title: result?.ok ? '포맷 완료' : '포맷 실패',
-                                message: resultMessage,
-                                detail: result?.ok
-                                    ? '기기가 새 USB 모드로 다시 연결될 때까지 잠시 기다려 주세요.'
-                                    : '디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.',
-                            });
-                            if (result?.ok && result.restartRequired) {
-                                reload().catch(error => {
-                                    void showMiniDiscWarning({
-                                        title: '프로그램 재시작 실패',
-                                        message: '프로그램을 자동으로 다시 시작하지 못했습니다.',
-                                        detail: `직접 종료한 뒤 다시 실행해 주세요.\n\n${error instanceof Error ? error.message : String(error)}`,
-                                    });
+                        const resultMessage = result?.message || (result?.ok ? 'Hi-MD 준비를 완료했습니다.' : 'Hi-MD 준비에 실패했습니다.');
+                        electron_1.ipcRenderer.removeListener('himd-format-progress', onFormatProgress);
+                        progress?.close();
+                        progress = null;
+                        // Allow the informational warning's promise/finalizer to
+                        // clear before opening the result dialog. Otherwise the
+                        // already-resolved warning can swallow this message and
+                        // leave only the home screen visible.
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        await showMiniDiscWarning({
+                            title: result?.ok
+                                ? result?.patchOnly ? 'RAM 패치 완료' : '포맷 완료'
+                                : result?.patchOnly ? 'RAM 패치 실패' : 'Hi-MD 준비 실패',
+                            message: resultMessage,
+                            detail: result?.ok
+                                ? result?.patchOnly
+                                    ? '기기 전원을 유지한 채 기존 Hi-MD 미디어로 교체하고 USB 케이블만 다시 연결하세요.'
+                                    : '기기가 새 USB 모드로 다시 연결될 때까지 잠시 기다려 주세요.'
+                                : '디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.',
+                        });
+                        if (result?.ok && result.restartRequired) {
+                            reload().catch(error => {
+                                void showMiniDiscWarning({
+                                    title: '프로그램 재시작 실패',
+                                    message: '프로그램을 자동으로 다시 시작하지 못했습니다.',
+                                    detail: `직접 종료한 뒤 다시 실행해 주세요.\n\n${error instanceof Error ? error.message : String(error)}`,
                                 });
-                            }
-                        }, 0);
+                            });
+                        }
                         return;
                     }
                     catch (error) {
@@ -381,6 +402,10 @@ exports.CHANGELOG = [
                             });
                         }, 0);
                         return;
+                    }
+                    finally {
+                        electron_1.ipcRenderer.removeListener('himd-format-progress', onFormatProgress);
+                        progress?.close();
                     }
                 });
                 footer.append(formatButton);
@@ -2077,11 +2102,56 @@ exports.CHANGELOG = [
         }
         updateNotice();
     };
+    let netMDFalseModeRetryAttempted = false;
+    const recoverFalseNetMDModeDialog = (dialog) => {
+        if (process.platform !== 'darwin' || netMDFalseModeRetryAttempted || dialog.dataset.wmdNetmdModeCheck)
+            return;
+        dialog.dataset.wmdNetmdModeCheck = 'true';
+        const text = dialog.textContent || '';
+        const describesStaleHiMDMode = text.includes('현재 기기는 Hi-MD') ||
+            text.includes('현재 기기의 USB 인터페이스는 Hi-MD') ||
+            text.includes('현재 기기의 USB 인터페이스가 Hi-MD') ||
+            text.includes('연결된 기기는 Hi-MD') ||
+            text.includes('현재 USB 인터페이스가 Hi-MD 모드에 남아 있습니다');
+        if (!text.includes('NetMD 모드로 연결할 수 없습니다') ||
+            !text.includes('잘못된 연결 모드가 차단되었습니다') ||
+            !describesStaleHiMDMode)
+            return;
+        void (async () => {
+            try {
+                const diagnostics = await getMiniDiscDiagnostics();
+                const devices = Array.isArray(diagnostics?.devices) ? diagnostics.devices : [];
+                const actualNetMD = devices.some(device => device.mode === 'netmd' && device.supportsNetMD);
+                const actualHiMD = devices.some(device => device.mode === 'himd' && device.supportsHiMD);
+                if (!actualNetMD || actualHiMD)
+                    return;
+                netMDFalseModeRetryAttempted = true;
+                // The recorder is already 054c:017e. The first click after a
+                // Hi-MD -> NetMD relaunch can still use the renderer's old
+                // Hi-MD service state. Closing this false dialog resets that
+                // state; the same click then succeeds, as a manual retry does.
+                const closeButton = Array.from(dialog.querySelectorAll('button')).find(button => /^(닫기|Close)$/i.test((button.textContent || '').trim()));
+                closeButton?.click();
+                await new Promise(resolve => setTimeout(resolve, 350));
+                const netMDTarget = [...document.querySelectorAll('a, button, [role="button"]')]
+                    .filter(element => !element.closest('[role="dialog"]'))
+                    .find(element => {
+                    const label = (element.textContent || '').replace(/\s+/g, ' ').trim();
+                    return label.includes('NetMD로 연결') || /(?:connect.*netmd|netmd.*connect)/i.test(label);
+                });
+                netMDTarget?.click();
+            }
+            catch (error) {
+                console.warn('Could not recover the stale NetMD mode dialog:', error);
+            }
+        })();
+    };
     const installNetMDFormatButton = () => {
         if (process.platform !== 'win32' && process.platform !== 'darwin')
             return;
         for (const dialog of document.querySelectorAll('[role="dialog"]')) {
             const text = dialog.textContent || '';
+            recoverFalseNetMDModeDialog(dialog);
             if (!text.includes('NetMD 모드로 연결할 수 없습니다') ||
                 (!text.includes('현재 기기는 Hi-MD') &&
                     !text.includes('현재 기기의 USB 인터페이스는 Hi-MD') &&
@@ -2123,6 +2193,16 @@ exports.CHANGELOG = [
             button.addEventListener('click', async () => {
                 button.disabled = true;
                 button.textContent = '디스크 확인 중…';
+                // This is the pre-format mode-choice dialog. Close it before
+                // starting the destructive confirmation/progress flow;
+                // otherwise it remains underneath the progress overlay and
+                // reappears after a successful Hi-MD -> NetMD conversion.
+                const initialCloseButton = Array.from(dialog.querySelectorAll('button')).find(candidate => candidate !== button &&
+                    /^(닫기|Close)$/i.test((candidate.textContent || '').trim()));
+                initialCloseButton?.click();
+                await new Promise(resolve => setTimeout(resolve, 0));
+                const progress = showMiniDiscFormatProgress('NetMD 전환 진행 중');
+                progress.update({ message: 'Hi-MD 미디어를 지우고 NetMD 모드로 전환하고 있습니다.' });
                 try {
                     const result = await formatStandardMDToNetMD();
                     if (result?.cancelled) {
@@ -2132,21 +2212,8 @@ exports.CHANGELOG = [
                     }
                     const resultMessage = result?.message || (result?.ok ? '포맷 명령을 완료했습니다.' : '포맷에 실패했습니다.');
                     if (result?.ok) {
-                        const closeButton = Array.from(dialog.querySelectorAll('button')).find(candidate => candidate !== button &&
-                            /^(닫기|Close)$/i.test((candidate.textContent || '').trim()));
-                        closeButton?.click();
-                        await showMiniDiscWarning({
-                            title: 'NetMD 포맷 완료',
-                            message: resultMessage,
-                            detail: '새 NetMD USB 모드를 다시 검색하기 위해 프로그램을 다시 시작합니다.',
-                        });
-                        reload().catch(restartError => {
-                            void showMiniDiscWarning({
-                                title: '프로그램 재시작 실패',
-                                message: '포맷은 완료했지만 프로그램을 자동으로 다시 시작하지 못했습니다.',
-                                detail: `직접 프로그램을 종료한 뒤 다시 실행해 주세요.\n\n${restartError instanceof Error ? restartError.message : String(restartError)}`,
-                            });
-                        });
+                        progress.update({ message: 'NetMD 전환을 확인했습니다. 새 연결 상태로 앱을 다시 시작합니다.' });
+                        await electron_1.ipcRenderer.invoke('restartAfterMiniDiscModeSwitch', 'netmd');
                         return;
                     }
                     await showMiniDiscWarning({
@@ -2166,12 +2233,88 @@ exports.CHANGELOG = [
                     button.disabled = false;
                     button.textContent = '전체 삭제 후 NetMD로 초기화';
                 }
+                finally {
+                    progress.close();
+                }
             });
             referenceButton.parentElement.insertBefore(button, referenceButton);
         }
     };
+    const showMiniDiscFormatProgress = (progressTitle = 'Hi-MD 포맷 진행 중') => {
+        document.querySelector('[data-himd-format-progress]')?.remove();
+        const overlay = document.createElement('div');
+        overlay.dataset.himdFormatProgress = 'true';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'himd-format-progress-title');
+        Object.assign(overlay.style, {
+            position: 'fixed',
+            inset: '0',
+            zIndex: '2147483647',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(3px)',
+            pointerEvents: 'auto',
+        });
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            width: 'min(560px, calc(100vw - 48px))',
+            padding: '32px',
+            borderRadius: '22px',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            background: '#202126',
+            color: '#f7f3f6',
+            boxShadow: '0 24px 80px rgba(0, 0, 0, 0.55)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+        });
+        const title = document.createElement('h2');
+        title.id = 'himd-format-progress-title';
+        title.textContent = progressTitle;
+        Object.assign(title.style, { margin: '0 0 18px', fontSize: '26px' });
+        const row = document.createElement('div');
+        Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '16px' });
+        const spinner = document.createElement('div');
+        spinner.textContent = '◌';
+        Object.assign(spinner.style, {
+            fontSize: '38px',
+            lineHeight: '1',
+            color: '#ef87b5',
+            animation: 'himdFormatSpin 1s linear infinite',
+        });
+        const message = document.createElement('p');
+        message.textContent = '연결된 기기와 일반 MD 상태를 확인하고 있습니다.';
+        Object.assign(message.style, { margin: '0', fontSize: '18px', lineHeight: '1.55' });
+        const warning = document.createElement('p');
+        warning.textContent = '완료 안내가 나타날 때까지 앱, USB 케이블 및 기기 전원을 건드리지 마세요.';
+        Object.assign(warning.style, {
+            margin: '22px 0 0',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            background: 'rgba(239, 135, 181, 0.12)',
+            color: '#f4bad2',
+            fontSize: '15px',
+            lineHeight: '1.5',
+        });
+        const style = document.createElement('style');
+        style.textContent = '@keyframes himdFormatSpin { to { transform: rotate(360deg); } }';
+        row.append(spinner, message);
+        panel.append(title, row, warning);
+        overlay.append(style, panel);
+        document.body.appendChild(overlay);
+        return {
+            update(value) {
+                if (value?.message)
+                    message.textContent = value.message;
+            },
+            close() {
+                overlay.remove();
+            },
+        };
+    };
     const installHiMDFormatButton = () => {
-        if (process.platform !== 'win32')
+        if (process.platform !== 'win32' && process.platform !== 'darwin')
             return;
         for (const dialog of document.querySelectorAll('[role="dialog"]')) {
             const text = dialog.textContent || '';
@@ -2211,6 +2354,9 @@ exports.CHANGELOG = [
             button.addEventListener('click', async () => {
                 button.disabled = true;
                 button.textContent = '기기 확인 중…';
+                const progress = showMiniDiscFormatProgress();
+                const onProgress = (_event, value) => progress.update(value);
+                electron_1.ipcRenderer.on('himd-format-progress', onProgress);
                 try {
                     const result = await formatStandardMDToHiMD();
                     if (result?.cancelled) {
@@ -2226,6 +2372,9 @@ exports.CHANGELOG = [
                             : '디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.',
                     });
                     if (result?.ok) {
+                        if (process.platform === 'darwin') {
+                            localStorage.setItem('wmdPendingHiMDFormat', '1');
+                        }
                         const closeButton = Array.from(dialog.querySelectorAll('button')).find(candidate => candidate !== button &&
                             /^(닫기|Close)$/i.test((candidate.textContent || '').trim()));
                         closeButton?.click();
@@ -2243,6 +2392,10 @@ exports.CHANGELOG = [
                     });
                     button.disabled = false;
                     button.textContent = '일반 MD를 지우고 Hi-MD로 포맷';
+                }
+                finally {
+                    electron_1.ipcRenderer.removeListener('himd-format-progress', onProgress);
+                    progress.close();
                 }
             });
             referenceButton.parentElement.insertBefore(button, referenceButton);
@@ -2584,6 +2737,76 @@ exports.CHANGELOG = [
             });
         }, 1500);
     };
+    const installConnectionDiagnosticCopyButton = () => {
+        const existing = document.querySelector('[data-wmd-connection-diagnostic-copy]');
+        const errorLabel = Array.from(document.querySelectorAll('.MuiFormHelperText-root.Mui-error'))
+            .find(element => {
+            const text = (element.textContent || '').trim();
+            if (!text || !element.closest('[data-wmd-shell="welcome"]') || element.closest('[role="dialog"]'))
+                return false;
+            const style = getComputedStyle(element);
+            return style.visibility !== 'hidden' && style.display !== 'none' && element.getClientRects().length > 0;
+        });
+        if (!errorLabel) {
+            existing?.remove();
+            return;
+        }
+        const errorText = (errorLabel.textContent || '').trim();
+        if (existing) {
+            existing.dataset.wmdConnectionError = errorText;
+            return;
+        }
+        const holder = document.createElement('div');
+        holder.dataset.wmdConnectionDiagnosticCopy = 'true';
+        holder.dataset.wmdConnectionError = errorText;
+        Object.assign(holder.style, {
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: '7px',
+        });
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = '진단 정보 복사';
+        button.setAttribute('aria-label', '연결 오류 진단 정보 복사');
+        Object.assign(button.style, {
+            minHeight: '32px',
+            padding: '5px 12px',
+            border: '1px solid rgba(224, 105, 161, .48)',
+            borderRadius: '9px',
+            color: '#f08ab9',
+            background: 'rgba(198, 80, 139, .08)',
+            font: 'inherit',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+        });
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            button.style.cursor = 'wait';
+            button.textContent = '진단 정보 모으는 중…';
+            try {
+                const report = await electron_1.ipcRenderer.invoke('buildCompactConnectionDiagnostics', holder.dataset.wmdConnectionError || '');
+                await electron_1.ipcRenderer.invoke('writeClipboardText', report);
+                button.textContent = `복사 완료 (${String(report).length}자)`;
+            }
+            catch (error) {
+                console.error('Connection diagnostic copy failed:', error);
+                button.textContent = '복사 실패';
+            }
+            setTimeout(() => {
+                if (!button.isConnected)
+                    return;
+                button.disabled = false;
+                button.style.cursor = 'pointer';
+                button.textContent = '진단 정보 복사';
+            }, 1800);
+        });
+        holder.appendChild(button);
+        // Keep the action visible even when the native helper error spans
+        // thousands of characters. Appending after the label put the button
+        // below the entire error report and effectively off-screen.
+        errorLabel.insertAdjacentElement('beforebegin', holder);
+    };
     const refreshKoreanUI = () => {
         installModernThemeMarkers();
         installLucideIcons();
@@ -2601,6 +2824,7 @@ exports.CHANGELOG = [
         installModernLoadingState();
         cleanUpModernMainMenu();
         installNetMDNoDiscRecovery();
+        installConnectionDiagnosticCopyButton();
         installModernAlertDialogs();
         monitorStalledMDTransfer();
     };

@@ -62,16 +62,77 @@ static void print_ioreturn(const char *stage, IOReturn result) {
             stage, result, (unsigned int)result);
 }
 
+static IOCFPlugInInterface **create_scsi_plugin_manually(io_service_t service) {
+    static const char *plugin_path =
+        "/System/Library/Extensions/IOSCSIArchitectureModelFamily.kext/Contents/PlugIns/"
+        "SCSITaskUserClient.kext/Contents/PlugIns/SCSITaskLib.plugin";
+    CFURLRef url = CFURLCreateFromFileSystemRepresentation(
+        kCFAllocatorDefault, (const UInt8 *)plugin_path, strlen(plugin_path), true
+    );
+    if (!url) return NULL;
+    CFPlugInRef bundle = CFPlugInCreate(kCFAllocatorDefault, url);
+    CFRelease(url);
+    if (!bundle) {
+        fprintf(stderr, "{\"stage\":\"manual-plugin-load\",\"error\":\"bundle-load-failed\"}\n");
+        return NULL;
+    }
+    CFUUIDRef factory = CFUUIDCreateFromString(
+        kCFAllocatorDefault, CFSTR("63326D72-08A2-11D5-865F-0030657D052A")
+    );
+    IOCFPlugInInterface **plugin = (IOCFPlugInInterface **)CFPlugInInstanceCreate(
+        kCFAllocatorDefault, factory, kIOSCSITaskDeviceUserClientTypeID
+    );
+    CFRelease(factory);
+    if (!plugin) {
+        fprintf(stderr, "{\"stage\":\"manual-plugin-create\",\"error\":\"instance-create-failed\"}\n");
+        CFRelease(bundle);
+        return NULL;
+    }
+    SInt32 score = 0;
+    IOReturn result = (*plugin)->Probe(plugin, NULL, service, &score);
+    if (result == kIOReturnSuccess) result = (*plugin)->Start(plugin, NULL, service);
+    if (result != kIOReturnSuccess) {
+        print_ioreturn("manual-plugin-start", result);
+        IODestroyPlugInInterface(plugin);
+        plugin = NULL;
+    }
+    CFRelease(bundle);
+    return plugin;
+}
+
+static void ensure_scsi_user_client_properties(io_service_t service) {
+    CFMutableDictionaryRef properties = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks
+    );
+    CFMutableDictionaryRef plugin_types = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks
+    );
+    CFDictionarySetValue(
+        plugin_types,
+        CFSTR("7D66678E-08A2-11D5-A1B8-0030657D052A"),
+        CFSTR("IOSCSIArchitectureModelFamily.kext/Contents/PlugIns/SCSITaskUserClient.kext/Contents/PlugIns/SCSITaskLib.plugin")
+    );
+    CFDictionarySetValue(properties, CFSTR("IOCFPlugInTypes"), plugin_types);
+    CFDictionarySetValue(properties, CFSTR("IOUserClientClass"), CFSTR("SCSITaskUserClient"));
+    CFDictionarySetValue(properties, CFSTR("SCSITaskDeviceCategory"), CFSTR("SCSITaskUserClientDevice"));
+    IOReturn result = IORegistryEntrySetCFProperties(service, properties);
+    if (result != kIOReturnSuccess) print_ioreturn("set-user-client-properties", result);
+    CFRelease(plugin_types);
+    CFRelease(properties);
+}
+
 static SCSITaskDeviceInterface **open_device_interface(io_service_t service) {
     IOCFPlugInInterface **plugin = NULL;
     SCSITaskDeviceInterface **device = NULL;
     SInt32 score = 0;
+    ensure_scsi_user_client_properties(service);
     IOReturn result = IOCreatePlugInInterfaceForService(
         service, kIOSCSITaskDeviceUserClientTypeID, kIOCFPlugInInterfaceID, &plugin, &score
     );
     if (result != kIOReturnSuccess || !plugin) {
         print_ioreturn("create-plugin", result);
-        return NULL;
+        plugin = create_scsi_plugin_manually(service);
+        if (!plugin) return NULL;
     }
     HRESULT query = (*plugin)->QueryInterface(
         plugin, CFUUIDGetUUIDBytes(kIOSCSITaskDeviceInterfaceID), (LPVOID *)&device
@@ -114,7 +175,13 @@ static SCSITaskDeviceInterface **find_supported_device(int *vendor_out, int *pro
             vendor = kSonyVendor;
         }
         if (vendor == kSonyVendor && (product < 0 || is_himd_product(product))) {
-            device = open_device_interface(service);
+            io_registry_entry_t child = IO_OBJECT_NULL;
+            io_service_t target = service;
+            if (IORegistryEntryGetChildEntry(service, kIOServicePlane, &child) == KERN_SUCCESS) {
+                target = child;
+            }
+            device = open_device_interface(target);
+            if (child != IO_OBJECT_NULL) IOObjectRelease(child);
             if (device) {
                 *vendor_out = vendor;
                 *product_out = product < 0 ? 0 : product;
@@ -258,6 +325,7 @@ static int probe_service(io_service_t service, int vendor, int product) {
     IOCFPlugInInterface **plugin = NULL;
     SCSITaskDeviceInterface **device = NULL;
     SInt32 score = 0;
+    ensure_scsi_user_client_properties(service);
     IOReturn result = IOCreatePlugInInterfaceForService(
         service,
         kIOSCSITaskDeviceUserClientTypeID,
@@ -267,7 +335,8 @@ static int probe_service(io_service_t service, int vendor, int product) {
     );
     if (result != kIOReturnSuccess || !plugin) {
         print_ioreturn("create-plugin", result);
-        return 2;
+        plugin = create_scsi_plugin_manually(service);
+        if (!plugin) return 2;
     }
 
     HRESULT query = (*plugin)->QueryInterface(

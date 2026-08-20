@@ -22,6 +22,7 @@ export class NetworkWMService extends NetMDService {
     public constructor(private keyData?: Uint8Array){ super(); }
 
     isDeviceConnected(device: USBDevice): boolean {
+        if (!this.database) return false;
         return (this.database.database.filesystem as UMSCHiMDFilesystem).driver.isDeviceConnected(device);
     }
 
@@ -182,8 +183,35 @@ export class NetworkWMService extends NetMDService {
     }
 
     async finalizeUpload() {
-        if(this.session != null)
-            await this.session.finalizeSession();
+        if(this.session != null) {
+            // Hn1.100 occasionally stops accepting the short 31-byte BOT
+            // command wrapper used to commit the new ICV. The audio payload
+            // has already been written at this point. Keep the generation
+            // stable and retry only the finalization transaction so a
+            // transient endpoint timeout does not strand the upload at 99%.
+            const session = this.session as UMSCNWJSSession & { currentGeneration: number };
+            const generationBeforeFinalize = session.currentGeneration;
+            let finalized = false;
+            let lastError: unknown;
+            for(let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    session.currentGeneration = generationBeforeFinalize;
+                    await session.finalizeSession();
+                    finalized = true;
+                    break;
+                } catch(error) {
+                    lastError = error;
+                    const message = String(error);
+                    const recoverable = message.includes('LIBUSB_TRANSFER_TIMED_OUT') ||
+                        message.includes('LIBUSB_ERROR_PIPE') ||
+                        message.includes("Result.status != 'ok' (stall)");
+                    if(!recoverable || attempt === 3) break;
+                    console.log(`MZ-NH1: final ICV commit attempt ${attempt} failed; retrying.`, message);
+                    await new Promise(resolve => setTimeout(resolve, attempt * 350));
+                }
+            }
+            if(!finalized) throw lastError;
+        }
         await this.database.flushUpdates();
         this.session = null;
     }

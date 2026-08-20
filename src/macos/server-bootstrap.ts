@@ -145,8 +145,14 @@ export class Connection {
     }
 
     disconnect(){
-        this.socket.removeAllListeners('close');
-        this.socket.destroy();
+        const socket = this.socket;
+        if(!socket) return;
+        socket.removeAllListeners('close');
+        socket.destroy();
+        this.socket = null as any;
+        this.awaitingReturnName = null;
+        this.awaitingReturnResolve = null;
+        this.awaitingReturnReject = null;
     }
 
     callMethod(service: string, name: string, ...allArgs: any[]): Promise<any>{

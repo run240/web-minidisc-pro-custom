@@ -70,6 +70,50 @@ static BOOL isHiMDProduct(int product) {
     }
 }
 
+static BOOL matchesHiMDInterface(io_service_t service, int vendor, int product) {
+    return readNumber(service, CFSTR("idVendor")) == vendor &&
+           readNumber(service, CFSTR("idProduct")) == product &&
+           readNumber(service, CFSTR("bInterfaceNumber")) == 0 &&
+           readNumber(service, CFSTR("bInterfaceClass")) == 8 &&
+           readNumber(service, CFSTR("bInterfaceProtocol")) == 0x50;
+}
+
+static uint64_t findHiMDInterfaceRegistryID(int vendor, int product) {
+    CFMutableDictionaryRef matching = IOServiceMatching("IOUSBHostInterface");
+    if (!matching) return 0;
+    io_iterator_t iterator = IO_OBJECT_NULL;
+    if (IOServiceGetMatchingServices(MACH_PORT_NULL, matching, &iterator) != KERN_SUCCESS) return 0;
+    uint64_t registryEntryID = 0;
+    io_service_t service;
+    while ((service = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
+        if (matchesHiMDInterface(service, vendor, product)) {
+            IORegistryEntryGetRegistryEntryID(service, &registryEntryID);
+            IOObjectRelease(service);
+            break;
+        }
+        IOObjectRelease(service);
+    }
+    IOObjectRelease(iterator);
+    return registryEntryID;
+}
+
+static BOOL rematchCapturedDeviceInterfaces(IOUSBHostDevice *device, uint64_t staleRegistryEntryID) {
+    const IOUSBConfigurationDescriptor *descriptor = device.configurationDescriptor;
+    NSUInteger configurationValue = descriptor ? descriptor->bConfigurationValue : 1;
+    NSError *error = nil;
+    BOOL configured = [device configureWithValue:configurationValue
+                                  matchInterfaces:YES
+                                            error:&error];
+    fprintf(stderr,
+            "{\"stage\":\"rematch-interfaces\",\"configurationValue\":%lu,"
+            "\"matchInterfaces\":true,\"staleRegistryId\":\"0x%llx\","
+            "\"status\":\"%s\"}\n",
+            (unsigned long)configurationValue, staleRegistryEntryID,
+            configured ? "requested" : "failed");
+    if (!configured && error) printError(@"rematch-interfaces", error);
+    return configured;
+}
+
 static IOUSBHostDevice *captureHiMDDevice(int *vendorOut, int *productOut) {
     CFMutableDictionaryRef matching = IOServiceMatching("IOUSBHostDevice");
     if (!matching) return nil;
@@ -111,7 +155,9 @@ static IOUSBHostDevice *captureHiMDDevice(int *vendorOut, int *productOut) {
     return device;
 }
 
-static IOUSBHostInterface *openHiMDInterface(int vendor, int product) {
+static IOUSBHostInterface *openHiMDInterface(int vendor, int product,
+                                             unsigned int attempt, unsigned int elapsedMs,
+                                             uint64_t staleRegistryEntryID) {
     CFMutableDictionaryRef matching = IOServiceMatching("IOUSBHostInterface");
     if (!matching) return nil;
 
@@ -124,17 +170,39 @@ static IOUSBHostInterface *openHiMDInterface(int vendor, int product) {
 
     IOUSBHostInterface *hostInterface = nil;
     io_service_t service;
+    unsigned int matchingInterfaces = 0;
     while ((service = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
-        int candidateVendor = readNumber(service, CFSTR("idVendor"));
-        int candidateProduct = readNumber(service, CFSTR("idProduct"));
-        int interfaceNumber = readNumber(service, CFSTR("bInterfaceNumber"));
-        int interfaceClass = readNumber(service, CFSTR("bInterfaceClass"));
-        int interfaceProtocol = readNumber(service, CFSTR("bInterfaceProtocol"));
-        if (candidateVendor != vendor || candidateProduct != product || interfaceNumber != 0 ||
-            interfaceClass != 8 || interfaceProtocol != 0x50) {
+        if (!matchesHiMDInterface(service, vendor, product)) {
             IOObjectRelease(service);
             continue;
         }
+        uint64_t registryEntryID = 0;
+        IORegistryEntryGetRegistryEntryID(service, &registryEntryID);
+        BOOL wasStale = staleRegistryEntryID != 0 && registryEntryID == staleRegistryEntryID;
+        // Some Hi-MD models publish a new interface object after capture, but
+        // others reactivate the existing registry object in place. Prefer a
+        // fresh object briefly, then retry the rematched object for every
+        // supported model instead of excluding it for the whole scan.
+        BOOL deferRematchedInterface = wasStale && attempt < 8;
+        if (deferRematchedInterface) {
+            if (attempt == 1 || attempt % 8 == 0) {
+                fprintf(stderr,
+                        "{\"stage\":\"skip-stale-interface\",\"attempt\":%u,"
+                        "\"elapsedMs\":%u,\"registryId\":\"0x%llx\"}\n",
+                        attempt, elapsedMs, registryEntryID);
+            }
+            IOObjectRelease(service);
+            continue;
+        }
+        if (wasStale && attempt == 8) {
+            fprintf(stderr,
+                    "{\"stage\":\"retry-rematched-interface\",\"attempt\":%u,"
+                    "\"elapsedMs\":%u,\"registryId\":\"0x%llx\"}\n",
+                    attempt, elapsedMs, registryEntryID);
+        }
+        matchingInterfaces++;
+        uint32_t busyState = 0;
+        IOServiceGetBusyState(service, &busyState);
         NSError *error = nil;
         hostInterface = [[IOUSBHostInterface alloc]
             initWithIOService:service
@@ -143,13 +211,29 @@ static IOUSBHostInterface *openHiMDInterface(int vendor, int product) {
             error:&error
             interestHandler:nil];
         if (hostInterface) {
+            fprintf(stderr,
+                    "{\"stage\":\"open-interface\",\"status\":\"ready\",\"attempt\":%u,"
+                    "\"elapsedMs\":%u,\"registryId\":\"0x%llx\",\"busyState\":%u,"
+                    "\"wasStale\":%s,\"openOption\":\"none\"}\n",
+                    attempt, elapsedMs, registryEntryID, busyState, wasStale ? "true" : "false");
             IOObjectRelease(service);
             break;
         }
+        fprintf(stderr,
+                "{\"stage\":\"open-interface-attempt\",\"attempt\":%u,\"elapsedMs\":%u,"
+                "\"registryId\":\"0x%llx\",\"busyState\":%u,\"wasStale\":%s,"
+                "\"openOption\":\"none\"}\n",
+                attempt, elapsedMs, registryEntryID, busyState, wasStale ? "true" : "false");
         if (error) printError(@"open-interface", error);
         IOObjectRelease(service);
     }
     IOObjectRelease(iterator);
+    if (!hostInterface && matchingInterfaces == 0) {
+        fprintf(stderr,
+                "{\"stage\":\"open-interface-scan\",\"attempt\":%u,\"elapsedMs\":%u,"
+                "\"matchingInterfaces\":0}\n",
+                attempt, elapsedMs);
+    }
     return hostInterface;
 }
 
@@ -226,13 +310,33 @@ static int serve(void) {
         return 1;
     }
 
-    // Device capture terminates the kernel mass-storage client.  The interface
-    // service remains registered, but give IOKit a moment to finish closing
-    // the old owner before creating our fresh interface user client.
-    usleep(250000);
-    IOUSBHostInterface *hostInterface = openHiMDInterface(vendor, product);
+    // Device capture terminates the existing interface clients.  The old
+    // IOUSBHostInterface registry object can remain visible with busyState=0
+    // while its user client is permanently unusable (0xe00002c9).  Select the
+    // device's current configuration again so IOKit publishes a fresh child
+    // interface, and ignore the stale registry object while waiting for it.
+    uint64_t staleRegistryEntryID = findHiMDInterfaceRegistryID(vendor, product);
+    BOOL rematchRequested = rematchCapturedDeviceInterfaces(device, staleRegistryEntryID);
+    uint64_t excludedRegistryEntryID = rematchRequested ? staleRegistryEntryID : 0;
+
+    // Device capture asks every existing mass-storage client to terminate, but
+    // that teardown is asynchronous and varies by Mac USB controller, hub path,
+    // and media state.  Rescan instead of assuming the interface is ready after
+    // one fixed 250 ms delay.  Eight seconds remains below the app's outer
+    // connection timeout while covering slow Disk Arbitration/IOKit teardown.
+    const unsigned int retryIntervalUs = 250000;
+    const unsigned int maximumAttempts = 32;
+    IOUSBHostInterface *hostInterface = nil;
+    for (unsigned int attempt = 1; attempt <= maximumAttempts && !hostInterface; attempt++) {
+        usleep(retryIntervalUs);
+        hostInterface = openHiMDInterface(vendor, product, attempt, attempt * 250,
+                                          excludedRegistryEntryID);
+    }
     if (!hostInterface) {
-        fprintf(stderr, "{\"stage\":\"discover\",\"error\":\"no-available-himd-usb-interface\"}\n");
+        fprintf(stderr,
+                "{\"stage\":\"discover\",\"error\":\"no-available-himd-usb-interface\","
+                "\"attempts\":%u,\"elapsedMs\":%u}\n",
+                maximumAttempts, maximumAttempts * 250);
         [device destroy];
         return 1;
     }

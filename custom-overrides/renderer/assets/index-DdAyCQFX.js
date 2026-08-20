@@ -227242,6 +227242,15 @@ const useStyles$n = makeStyles()((e) => ({
           return;
         }
         let Lt = Ut.devices.find((Ft) => Ft.mode === jt);
+        if (!Lt && Ut.platform === "darwin" && jt === "netmd") {
+          xt("NetMD USB 인터페이스가 안정될 때까지 기다리는 중입니다…");
+          for (let Ft = 0; Ft < 16 && !Lt; Ft++) {
+            await new Promise((Ot) => setTimeout(Ot, 250));
+            const Ot = await window.native.getMiniDiscDiagnostics();
+            if (!Ot) break;
+            ((Ut = Ot), (Lt = Ut.devices.find((Ht) => Ht.mode === jt)));
+          }
+        }
         if (!Lt && Ut.platform === "win32" && Ut.devices.length === 0) {
           xt(
             jt === "himd"
@@ -227280,7 +227289,9 @@ const useStyles$n = makeStyles()((e) => ({
             ? {
                 title: "Hi-MD USB 인터페이스를 기다리고 있습니다",
                 message:
-                  "현재 기기는 NetMD USB 인터페이스로 보입니다. Hi-MD 또는 1GB Hi-MD 전용 미디어가 들어 있다면 포맷하지 말고, 이 창을 닫은 뒤 USB 케이블을 다시 연결해 0x0287 같은 Hi-MD 인터페이스가 나타날 때까지 기다렸다가 다시 시도하세요. 아래 포맷 기능은 지워도 되는 일반 MD를 Hi-MD 형식으로 새로 초기화하려는 경우에만 사용합니다.",
+                  "현재 기기는 NetMD USB 인터페이스로 보입니다. 기존 Hi-MD 미디어를 따로 사용하려면 ‘Hi-MD 준비 / 포맷’에서 RAM 패치만 적용할 수 있습니다. 일반 MD 자체를 Hi-MD로 바꾸려는 경우에만 포맷을 선택하세요.",
+                recommendedOption: 2,
+                recommendedLabel: "Hi-MD 준비 / 포맷",
               }
             : jt === "netmd" && Bt
               ? {

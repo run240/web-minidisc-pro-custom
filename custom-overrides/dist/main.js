@@ -348,6 +348,14 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                 }
             }
             const targetObject = objectFactory();
+            // The renderer polls device status once per second. A final poll
+            // can arrive just after a successful mode switch has deliberately
+            // closed the old NetMD handle. Treat that stale poll as an empty
+            // result instead of presenting a false connection error.
+            if (namespace === '_netmd_' && n === 'getDeviceStatus' && !targetObject.netmdInterface) {
+                appendDiagnosticLog('Ignored stale NetMD status poll after mode switch', { at: Date.now() });
+                return [null, null];
+            }
             if (!targetObject.__activeIpcMethods) {
                 Object.defineProperty(targetObject, '__activeIpcMethods', {
                     configurable: true,
@@ -557,6 +565,11 @@ async function integrate(window) {
     let factoryDefList = [];
     electron_1.ipcMain.handle('reload', reload.bind(null, window));
     electron_1.ipcMain.handle('getMiniDiscDiagnostics', () => (0, device_diagnostics_1.getMiniDiscDiagnostics)());
+    electron_1.ipcMain.handle('buildCompactConnectionDiagnostics', (_event, errorMessage) => (0, device_diagnostics_1.buildCompactConnectionDiagnostics)({
+        appVersion: electron_1.app.getVersion(),
+        errorMessage: String(errorMessage ?? ''),
+        userDataPath: electron_1.app.getPath('userData'),
+    }));
     electron_1.ipcMain.handle('openWindowsDriverGuide', () => electron_1.dialog.showMessageBox(window, {
         type: 'info',
         title: 'MiniDisc WinUSB 드라이버 안내',
@@ -611,6 +624,15 @@ async function integrate(window) {
             return null;
         }
         return pending.creatorPid === process.pid ? null : pending.mode;
+    });
+    electron_1.ipcMain.handle('restartAfterMiniDiscModeSwitch', (_event, mode) => {
+        if (mode !== 'netmd' && mode !== 'himd')
+            return { ok: false };
+        // Store and relaunch atomically. The current renderer must not click a
+        // mode card while it still contains the pre-format USB service state.
+        rememberPendingMiniDiscMode(mode);
+        setTimeout(() => reload(window), 25);
+        return { ok: true };
     });
     const switchHiMDInterfaceToNetMD = async (device) => {
         if (!device?.supportsHiMD || device.driverStatus !== 'winusb') {
@@ -932,11 +954,12 @@ async function integrate(window) {
                         detail: [
                             '디스크의 내용을 유지하려면 닫은 뒤 NetMD로 연결하세요.',
                             '',
-                            'Hi-MD로 사용하려면 아래 포맷 버튼을 선택할 수 있습니다.',
-                            '포맷하면 디스크의 모든 트랙과 제목이 영구적으로 삭제됩니다.',
+                            '기존 Hi-MD 미디어로 교체하려면 아래 버튼에서 “RAM 패치만 적용”을 선택하세요.',
+                            '일반 MD 자체를 Hi-MD로 바꾸려는 경우에만 포맷을 선택하세요.',
+                            '포맷하면 현재 디스크의 모든 트랙과 제목이 영구적으로 삭제됩니다.',
                         ].join('\n'),
                         formatTarget: 'himd',
-                        formatLabel: '전체 삭제 후 Hi-MD로 포맷',
+                        formatLabel: 'Hi-MD 준비 / 포맷',
                     },
                 };
             }
@@ -1702,6 +1725,7 @@ async function integrate(window) {
             enabled,
         };
     });
+    let macHiMDConnection = null;
     const clearMiniDiscConnections = async () => {
         if (rendererReportedTransferActive || himdService.atdata !== null || hasActiveTransfer(service) || hasActiveTransfer(himdService)) {
             return {
@@ -1728,12 +1752,20 @@ async function integrate(window) {
             service.dropCachedContentList();
         }
         try {
-            await withTimeout(himdService.finalize(), 5000, 'Hi-MD 연결 정리 시간이 초과되었습니다.');
+            if (process.platform === 'darwin' && macHiMDConnection?.socket) {
+                await withTimeout(macHiMDConnection.callMethod('himd', 'finalize'), 5000, 'Hi-MD 연결 정리 시간이 초과되었습니다.');
+            }
+            else {
+                await withTimeout(himdService.finalize(), 5000, 'Hi-MD 연결 정리 시간이 초과되었습니다.');
+            }
         }
         catch (error) {
             warnings.push(`Hi-MD: ${error instanceof Error ? error.message : String(error)}`);
         }
         finally {
+            if (process.platform === 'darwin' && macHiMDConnection?.socket) {
+                macHiMDConnection.disconnect();
+            }
             himdService.fsDriver = undefined;
             himdService.himd = undefined;
             himdService.cachedDisc = undefined;
@@ -1749,6 +1781,13 @@ async function integrate(window) {
     };
     electron_1.ipcMain.handle('returnToModeSelection', async () => clearMiniDiscConnections());
     const formatStandardMDToHiMD = async () => {
+        const reportFormatProgress = (stage, message) => {
+            if (!window.isDestroyed()) {
+                window.webContents.send('himd-format-progress', { stage, message });
+            }
+            appendDiagnosticLog(`Hi-MD format progress: ${stage}`, message);
+        };
+        reportFormatProgress('checking', '연결된 기기와 일반 MD 상태를 확인하고 있습니다.');
         if (process.platform !== 'win32' && process.platform !== 'darwin') {
             return { ok: false, message: '이 운영체제에서는 Hi-MD 포맷을 지원하지 않습니다.' };
         }
@@ -1807,50 +1846,128 @@ async function integrate(window) {
                 return { ok: false, message: '선택한 기기와 실제 열린 기기가 달라 포맷을 중단했습니다.' };
             }
             const capabilities = await withTimeout(service.getServiceCapabilities(), 12000, '기기의 Hi-MD 포맷 지원 여부를 확인하지 못했습니다.');
-            if (!capabilities.includes(10)) {
+            const confirmation = await showRendererWarning(window, {
+                title: 'Hi-MD 준비 방법 선택',
+                message: '기존 Hi-MD 미디어를 쓸까요, 현재 일반 MD를 Hi-MD로 바꿀까요?',
+                detail: [
+                    '“RAM 패치만 적용”은 현재 일반 MD를 지우지 않습니다. 완료 후 기기 전원을 유지한 채 기존 Hi-MD 미디어로 교체하고 USB만 다시 연결하세요.',
+                    '',
+                    '“일반 MD를 Hi-MD로 포맷”은 현재 디스크의 모든 트랙과 제목을 영구적으로 삭제합니다.',
+                    '',
+                    `대상 기기: ${targetDevice.modelHint} (${targetDevice.vendorIdHex}:${targetDevice.productIdHex})`,
+                ].join('\n'),
+                choices: [
+                    { value: 'cancel', label: '취소', kind: 'secondary' },
+                    ...(process.platform === 'darwin'
+                        ? [{ value: 'patch-only', label: 'RAM 패치만 적용 (미디어 유지)', kind: 'primary' }]
+                        : []),
+                    { value: 'format', label: '일반 MD를 지우고 Hi-MD로 포맷', kind: 'danger' },
+                ],
+                cancelValue: 'cancel',
+            });
+            if (confirmation !== 'format' && confirmation !== 'patch-only')
+                return { ok: false, cancelled: true, message: 'Hi-MD 준비를 취소했습니다.' };
+            const patchOnly = confirmation === 'patch-only';
+            if (!patchOnly && !capabilities.includes(10)) {
                 return {
                     ok: false,
                     message: `${targetDevice.modelHint}은(는) 펌웨어의 NetMD→Hi-MD 포맷 명령을 지원하지 않습니다.`,
                 };
             }
-            if (!capabilities.includes(2)) {
+            if (!patchOnly && !capabilities.includes(2)) {
                 return {
                     ok: false,
                     message: '디스크가 쓰기 금지 상태이거나 포맷 가능한 미디어가 아닙니다.',
                 };
             }
-            const confirmation = await showRendererWarning(window, {
-                title: 'Hi-MD로 포맷',
-                message: '현재 일반 MD를 Hi-MD 형식으로 초기화하시겠습니까?',
-                detail: [
-                    '디스크의 모든 트랙과 제목이 영구적으로 삭제됩니다.',
-                    '',
-                    `대상 기기: ${targetDevice.modelHint} (${targetDevice.vendorIdHex}:${targetDevice.productIdHex})`,
-                    '포맷 뒤 기기는 Hi-MD USB 인터페이스로 다시 연결됩니다.',
-                    process.platform === 'win32'
-                        ? '설치된 범용 WinUSB 드라이버가 전환된 Hi-MD USB ID에도 자동 적용됩니다.'
-                        : 'macOS에서 새 Hi-MD 볼륨을 안전하게 언마운트한 뒤 다시 연결합니다.',
-                ].join('\n'),
-                choices: [
-                    { value: 'cancel', label: '취소', kind: 'secondary' },
-                    { value: 'format', label: '모든 데이터를 지우고 Hi-MD로 포맷', kind: 'danger' },
-                ],
-                cancelValue: 'cancel',
-            });
-            if (confirmation !== 'format')
-                return { ok: false, cancelled: true, message: '포맷을 취소했습니다.' };
+            reportFormatProgress('preparing', patchOnly
+                ? '현재 미디어를 유지하고 macOS용 Hi-MD RAM 패치만 준비하고 있습니다.'
+                : '포맷을 준비하고 있습니다. 기기 전원과 USB 연결을 유지해 주세요.');
             let commandError;
+            let formatCommandCompleted = false;
+            let macHiMDOverrideLoaded = false;
             try {
                 miniDiscModeSwitchInProgress = true;
-                await withTimeout(service.formatToHiMD(), 30000, 'Hi-MD 포맷 명령의 응답 시간이 초과되었습니다.');
-                switchRequested = true;
+                // Normal Sony Hi-MD identities are captured by Apple's
+                // mass-storage stack on recent macOS releases. When the
+                // connected firmware advertises the Hi-MD USB-class override,
+                // load it while NetMD is still reachable. Supported NH/RH
+                // models then re-enumerate as vendor-class 5341:5256 and use
+                // the reliable WebUSB transport without a model-ID special case.
+                if (process.platform === 'darwin') {
+                    reportFormatProgress('ram-patch', `${targetDevice.modelHint}의 macOS Hi-MD 우회 지원 여부를 확인하고 있습니다.`);
+                    const factoryService = await withTimeout(service.factory(), 15000, 'Hi-MD RAM 패치 준비 시간이 초과되었습니다.');
+                    if (factoryService) {
+                        const exploitCapabilities = await withTimeout(factoryService.getExploitCapabilities(), 10000, 'Hi-MD RAM 패치 지원 여부를 확인하지 못했습니다.');
+                        if (exploitCapabilities.includes(6)) {
+                            await withTimeout(factoryService.enableHiMDFullMode(), 20000, 'Hi-MD RAM 패치 적용 시간이 초과되었습니다.');
+                            macHiMDOverrideLoaded = true;
+                            appendDiagnosticLog('Unrestricted Hi-MD patch loaded during Hi-MD preparation', {
+                                modelHint: targetDevice.modelHint,
+                                vendorId: targetDevice.vendorIdHex,
+                                productId: targetDevice.productIdHex,
+                            });
+                        }
+                        else {
+                            appendDiagnosticLog('Hi-MD USB-class override is not supported by this firmware', {
+                                modelHint: targetDevice.modelHint,
+                                vendorId: targetDevice.vendorIdHex,
+                                productId: targetDevice.productIdHex,
+                            });
+                            if (patchOnly) {
+                                throw new Error(`${targetDevice.modelHint} 펌웨어에서는 macOS용 Hi-MD RAM 패치만 적용할 수 없습니다.`);
+                            }
+                        }
+                    }
+                    else if (patchOnly) {
+                        throw new Error(`${targetDevice.modelHint}에서 RAM 패치 기능을 준비하지 못했습니다.`);
+                    }
+                }
+                if (patchOnly) {
+                    if (!macHiMDOverrideLoaded) {
+                        throw new Error('호환되는 Hi-MD RAM 패치를 적용하지 못했습니다.');
+                    }
+                    reportFormatProgress('complete', 'RAM 패치를 적용했습니다. 현재 미디어는 변경하지 않았습니다.');
+                    appendDiagnosticLog('Unrestricted Hi-MD patch-only preparation completed', {
+                        modelHint: targetDevice.modelHint,
+                        vendorId: targetDevice.vendorIdHex,
+                        productId: targetDevice.productIdHex,
+                    });
+                    return {
+                        ok: true,
+                        erased: false,
+                        patchOnly: true,
+                        switchRequested: false,
+                        message: 'RAM 패치를 적용했고 현재 미디어는 지우지 않았습니다. 기기 전원을 유지한 채 기존 Hi-MD 미디어로 교체한 뒤 USB 케이블만 다시 연결하고 Hi-MD를 선택하세요.',
+                    };
+                }
+                reportFormatProgress('formatting', '일반 MD를 지우고 Hi-MD 파일시스템을 만들고 있습니다.');
+                try {
+                    await withTimeout(service.formatToHiMD(), 90000, 'Hi-MD 포맷 명령의 응답 시간이 초과되었습니다.');
+                }
+                catch (formatError) {
+                    const formatErrorMessage = formatError instanceof Error ? formatError.message : String(formatError);
+                    if (!formatErrorMessage.includes('Rejected - 0a1840ff0000'))
+                        throw formatError;
+                    // netmd-js implements formatToHiMD as eraseDisc() followed
+                    // by enterHiMDMode(). NH1 rejects eraseDisc() with this
+                    // exact response when the previous attempt already erased
+                    // the medium (the unit displays BLANKDISC), which otherwise
+                    // prevents the second command from ever running.
+                    reportFormatProgress('blank-disc', '디스크가 이미 비어 있습니다. 삭제를 반복하지 않고 Hi-MD 모드로 전환합니다.');
+                    const openedInterface = service.netmdInterface;
+                    if (!openedInterface)
+                        throw new Error('빈 디스크를 Hi-MD로 전환할 NetMD 인터페이스가 닫혔습니다.');
+                    await withTimeout(openedInterface.enterHiMDMode(), 20000, '빈 디스크의 Hi-MD 모드 전환 시간이 초과되었습니다.');
+                }
+                formatCommandCompleted = true;
             }
             catch (error) {
                 commandError = error;
                 console.log('NetMD to Hi-MD switch interrupted:', error);
             }
             const expectedHiMDProducts = new Map([
-                [0x017e, [0x017f]],
+                [0x017e, [0x017f, 0x5256]],
                 [0x0180, [0x0181]],
                 [0x0182, [0x0183]],
                 [0x0184, [0x0185]],
@@ -1863,20 +1980,20 @@ async function integrate(window) {
             ]);
             const expectedProducts = expectedHiMDProducts.get(targetDevice.productId) ?? [];
             let refreshedDevices = [];
-            const formatReenumerationAttempts = process.platform === 'darwin' ? 20 : 4;
+            const formatReenumerationAttempts = process.platform === 'darwin' ? 60 : 4;
+            reportFormatProgress('reconnecting', 'Hi-MD USB 모드로 다시 연결되기를 기다리고 있습니다.');
             for (let attempt = 0; attempt < formatReenumerationAttempts; attempt++) {
                 await wait(800);
                 refreshedDevices = (0, device_diagnostics_1.getMiniDiscDiagnostics)().devices;
-                if (refreshedDevices.some(device => device.vendorId === targetDevice.vendorId &&
-                    expectedProducts.includes(device.productId))) {
+                if (refreshedDevices.some(device => (device.vendorId === targetDevice.vendorId &&
+                    expectedProducts.includes(device.productId)) ||
+                    (macHiMDOverrideLoaded && device.vendorId === 0x5341 && device.productId === 0x5256))) {
                     switchRequested = true;
                     break;
                 }
             }
-            const oldInterfaceStillPresent = refreshedDevices.some(device => device.vendorId === targetDevice.vendorId &&
-                device.productId === targetDevice.productId &&
-                device.busNumber === targetDevice.busNumber);
-            if (!commandError || switchRequested) {
+            if (switchRequested) {
+                reportFormatProgress('complete', 'Hi-MD 포맷 명령을 완료했습니다.');
                 return {
                     ok: true,
                     erased: true,
@@ -1884,22 +2001,20 @@ async function integrate(window) {
                     message: 'Hi-MD 포맷 명령을 완료했습니다. Hi-MD 인터페이스가 나타나지 않으면 USB 케이블을 한 번 다시 연결해 주세요.',
                 };
             }
-            if (!oldInterfaceStillPresent) {
-                return {
-                    ok: true,
-                    erased: true,
-                    switchRequested: true,
-                    message: '기기가 포맷 중 USB에서 다시 연결되어 마지막 응답은 끊겼습니다. USB를 다시 연결한 뒤 Hi-MD를 선택해 주세요.',
-                };
-            }
+            reportFormatProgress('error', commandError instanceof Error
+                ? commandError.message
+                : formatCommandCompleted
+                    ? '포맷 명령은 끝났지만 Hi-MD USB 모드로 전환되지 않았습니다.'
+                    : String(commandError || 'Hi-MD 포맷을 완료하지 못했습니다.'));
             return {
                 ok: false,
-                erased: true,
-                message: `디스크 삭제 뒤 Hi-MD 전환을 확인하지 못했습니다. USB를 다시 연결해 상태를 확인해 주세요.\n${commandError instanceof Error ? commandError.message : String(commandError)}`,
+                erased: formatCommandCompleted,
+                message: `Hi-MD 포맷과 USB 모드 전환 완료를 확인하지 못했습니다. 기기 상태를 확인한 뒤 다시 시도해 주세요.\n${commandError instanceof Error ? commandError.message : formatCommandCompleted ? '포맷 명령은 끝났지만 Hi-MD USB 인터페이스가 나타나지 않았습니다.' : String(commandError || '')}`,
             };
         }
         catch (error) {
             console.error('Hi-MD format failed:', error);
+            reportFormatProgress('error', error instanceof Error ? error.message : String(error));
             return {
                 ok: false,
                 message: error instanceof Error ? error.message : String(error),
@@ -1982,6 +2097,7 @@ async function integrate(window) {
     }
     else {
         const connection = new server_bootstrap_1.Connection();
+        macHiMDConnection = connection;
         connection.deviceDisconnectedCallback = () => {
             if (!miniDiscModeSwitchInProgress)
                 reload(window);
@@ -2009,7 +2125,6 @@ async function integrate(window) {
             let helperError;
             let helperCallStarted = false;
             miniDiscModeSwitchInProgress = true;
-            rememberPendingMiniDiscMode('netmd');
             try {
                 if (!connection.socket) {
                     try {
@@ -2043,6 +2158,13 @@ async function integrate(window) {
                     await wait(500);
                     const switched = (0, device_diagnostics_1.getMiniDiscDiagnostics)().devices.find(device => device.vendorId === hiMDDevice.vendorId && device.mode === 'netmd');
                     if (switched) {
+                        // The helper can complete the USB switch while the
+                        // renderer is still awaiting the old Hi-MD RPC. Do the
+                        // handoff here, where 054c:017e has been observed,
+                        // instead of relying on the stale dialog to receive the
+                        // success result and request a relaunch.
+                        rememberPendingMiniDiscMode('netmd');
+                        setTimeout(() => reload(window), 100);
                         return {
                             ok: true,
                             erased: true,
