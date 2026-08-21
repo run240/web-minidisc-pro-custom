@@ -13,6 +13,7 @@
     "build": "./build-renderer.sh && ./run-fixes.sh && tsc",
     "build:custom": "node scripts/build-custom.mjs",
     "test:himd-edit-batch": "npm run build:custom && node scripts/test-himd-edit-batch.cjs",
+    "test:i18n": "node scripts/check-windows-i18n.cjs",
     "pack:custom": "npm run build:custom && electron-builder --dir --win --x64",
     "release:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-release.ps1",
     "start": "npm run build && NODE_ENV=development electron ./dist/main.js",

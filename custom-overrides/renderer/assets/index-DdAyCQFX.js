@@ -1,3 +1,7 @@
+const wmdCustomUILanguage =
+  localStorage.getItem("wmdUiLanguage") ||
+  (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
+const wmdCustomText = (e, t) => (wmdCustomUILanguage === "ko" ? e : t);
 const __vite__mapDeps = (
   i,
   m = __vite__mapDeps,
@@ -178436,7 +178440,7 @@ class NetMDUSBService extends NetMDService {
       new Set(g).size !== o ||
       g.some((P) => !Number.isInteger(P) || P < 0 || P >= o)
     )
-      throw new Error("NetMD 편집 목록의 트랙 순서가 올바르지 않습니다.");
+      throw new Error(wmdCustomText("NetMD 편집 목록의 트랙 순서가 올바르지 않습니다.", "The NetMD edit list has an invalid track order."));
     const s = Array.from({ length: o }, (P, ot) => ot),
       originalTracks = n.groups
         .flatMap((P) => P.tracks)
@@ -178448,7 +178452,7 @@ class NetMDUSBService extends NetMDService {
     for (const P of metadata) {
       const ot = Number(P.originalIndex);
       if (!Number.isInteger(ot) || ot < 0 || ot >= o)
-        throw new Error("NetMD 제목 편집 대상이 올바르지 않습니다.");
+          throw new Error(wmdCustomText("NetMD 제목 편집 대상이 올바르지 않습니다.", "The NetMD title edit target is invalid."));
       ((editedTracks[ot].title = sanitizeNetMDHalfWidthTitle(P.title)),
         (editedTracks[ot].fullWidthTitle = sanitizeNetMDFullWidthTitle(
           P.fullWidthTitle,
@@ -178498,20 +178502,20 @@ class NetMDUSBService extends NetMDService {
       const A = await this.listContentUsingCache(),
         Ze = A.groups.reduce((P, ot) => P + ot.tracks.length, 0);
       if (Ze !== o)
-        throw new Error(`적용 후 트랙 수가 ${o}개에서 ${Ze}개로 달라졌습니다.`);
+        throw new Error(wmdCustomText(`적용 후 트랙 수가 ${o}개에서 ${Ze}개로 달라졌습니다.`, `The track count changed from ${o} to ${Ze} after applying the edits.`));
       const Fe = A.groups
         .flatMap((P) => P.tracks)
         .sort((P, ot) => P.index - ot.index)
         .map(trackSignature);
       if (Fe.some((P, ot) => P !== expectedSignatures[ot]))
         throw new Error(
-          "적용 후 트랙 순서 검증 결과가 요청한 순서와 다릅니다.",
+          wmdCustomText("적용 후 트랙 순서 검증 결과가 요청한 순서와 다릅니다.", "The verified track order does not match the requested order."),
         );
       return A;
     } catch (A) {
       this.dropCachedContentList();
       throw new Error(
-        `${S ? "NetMD 편집 적용 중 오류가 발생했습니다. 디스크를 다시 검색해 실제 제목과 순서를 확인해 주세요.\n" : ""}${A instanceof Error ? A.message : String(A)}`,
+        `${S ? wmdCustomText("NetMD 편집 적용 중 오류가 발생했습니다. 디스크를 다시 검색해 실제 제목과 순서를 확인해 주세요.\n", "An error occurred while applying NetMD edits. Rescan the disc and verify the actual titles and order.\n") : ""}${A instanceof Error ? A.message : String(A)}`,
       );
     }
   }
@@ -183844,7 +183848,7 @@ BYTES_DEFAULT_SPEC.translateToDefaultMeasuringModeFrom =
 const Services = [
   {
     name: "USB NetMD",
-    getConnectName: () => "NetMD로 연결",
+    getConnectName: () => wmdCustomText("NetMD로 연결", "Connect with NetMD"),
     create: () => {
       var e;
       return (
@@ -183857,14 +183861,14 @@ const Services = [
   },
   {
     name: "HiMD (Read Only)",
-    getConnectName: () => "Hi-MD 일반 연결",
+    getConnectName: () => wmdCustomText("Hi-MD 일반 연결", "Connect with Hi-MD"),
     create: () => new HiMDRestrictedService({ debug: !0 }),
     spec: new HiMDSpec(),
     requiresChrome: !0,
   },
   {
     name: "HiMD (Full)",
-    getConnectName: () => "Hi-MD 전체 기능 연결",
+    getConnectName: () => wmdCustomText("Hi-MD 전체 기능 연결", "Connect with full Hi-MD features"),
     create: () => {
       var e, t;
       return (e = window.native) != null && e.himdFullInterface
@@ -201101,7 +201105,7 @@ function applyHiMDEditDraft(options = {}) {
       e(
         batchActions([
           actions$f.setErrorMessage(
-            "디스크가 없어 편집 내용을 적용할 수 없습니다. 디스크를 넣은 뒤 다시 편집해 주세요.",
+          wmdCustomText("디스크가 없어 편집 내용을 적용할 수 없습니다. 디스크를 넣은 뒤 다시 편집해 주세요.", "No disc is present, so the edits cannot be applied. Insert a disc and try again."),
           ),
           actions$f.setVisible(!0),
         ]),
@@ -201126,9 +201130,9 @@ function applyHiMDEditDraft(options = {}) {
             actions$8.setLoading(!1),
             actions$f.setErrorMessage(
               /^Rejected\s*-/i.test((a == null ? void 0 : a.message) || "")
-                ? "기기가 편집 명령을 거부했습니다. 디스크가 들어 있는지 확인하고, 기기를 다시 연결한 뒤 재시도해 주세요."
+                ? wmdCustomText("기기가 편집 명령을 거부했습니다. 디스크가 들어 있는지 확인하고, 기기를 다시 연결한 뒤 재시도해 주세요.", "The recorder rejected the edit command. Make sure a disc is inserted, reconnect the recorder, and try again.")
                 : (a == null ? void 0 : a.message) ??
-                    `${i} 편집 적용에 실패했습니다. 장치를 다시 연결한 뒤 확인해 주세요.`,
+                    wmdCustomText(`${i} 편집 적용에 실패했습니다. 장치를 다시 연결한 뒤 확인해 주세요.`, `Failed to apply ${i} edits. Reconnect the recorder and check the disc.`),
             ),
             actions$f.setVisible(!0),
           ]),
@@ -201191,7 +201195,7 @@ function dragDropTrack(e, t, n, o) {
         )
       ) {
         window.alert(
-          "48kbps 트랙이 포함된 Hi-MD에서는 안전을 위해 순서 편집을 사용할 수 없습니다.",
+          wmdCustomText("48kbps 트랙이 포함된 Hi-MD에서는 안전을 위해 순서 편집을 사용할 수 없습니다.", "Track reordering is disabled for safety on Hi-MD discs that contain 48 kbps tracks."),
         );
         return;
       }
@@ -201248,7 +201252,7 @@ function dragDropTrack(e, t, n, o) {
     } catch (S) {
       (console.error("Track reorder failed:", S),
         window.alert(
-          (S == null ? void 0 : S.message) ?? "트랙 순서 변경에 실패했습니다.",
+          (S == null ? void 0 : S.message) ?? wmdCustomText("트랙 순서 변경에 실패했습니다.", "Failed to reorder tracks."),
         ));
     } finally {
       g(actions$8.setLoading(!1));
@@ -201337,7 +201341,7 @@ function pair(e, t) {
       }
       n(
         batchActions([
-          actions$8.setPairingMessage("연결에 실패했습니다."),
+          actions$8.setPairingMessage(wmdCustomText("연결에 실패했습니다.", "Connection failed.")),
           actions$8.setPairingFailed(!0),
         ]),
       );
@@ -201346,7 +201350,7 @@ function pair(e, t) {
       const A = S.message;
       n(
         batchActions([
-          actions$8.setPairingMessage(A ?? "알 수 없는 오류가 발생했습니다."),
+          actions$8.setPairingMessage(A ?? wmdCustomText("알 수 없는 오류가 발생했습니다.", "An unknown error occurred.")),
           actions$8.setPairingFailed(!0),
         ]),
       );
@@ -201386,12 +201390,12 @@ function listContent(e = !1, automatic = !1) {
             if (connectionFailure) throw S;
             if (
               await window.native.confirmMiniDiscAction({
-                title: "디스크 제목 정보 복구",
-                message: "디스크 제목 정보가 손상된 것 같습니다.",
+                title: wmdCustomText("디스크 제목 정보 복구", "Recover disc title information"),
+                message: wmdCustomText("디스크 제목 정보가 손상된 것 같습니다.", "The disc title information appears to be corrupted."),
                 detail:
-                  "제목 정보만 초기화할까요? 오디오 트랙은 삭제되지 않습니다.",
-                confirmLabel: "제목 정보 초기화",
-                cancelLabel: "취소",
+                  wmdCustomText("제목 정보만 초기화할까요? 오디오 트랙은 삭제되지 않습니다.", "Reset only the title information? Audio tracks will not be deleted."),
+                confirmLabel: wmdCustomText("제목 정보 초기화", "Reset title information"),
+                cancelLabel: wmdCustomText("취소", "Cancel"),
               })
             )
               (await ServiceRegistry.netmdService.wipeDiscTitleInfo(),
@@ -201423,11 +201427,11 @@ function listContent(e = !1, automatic = !1) {
             actions$8.setLoading(!1),
             actions$f.setErrorMessage(
               rejected
-                ? "현재 디스크를 NetMD 모드에서 읽을 수 없습니다. Hi-MD 형식 미디어라면 뒤로 이동한 뒤 ‘Hi-MD로 연결’을 선택해 주세요. 일반 MD 미디어라면 USB 케이블을 다시 연결한 뒤 NetMD로 재시도해 주세요."
+              ? wmdCustomText("현재 디스크를 NetMD 모드에서 읽을 수 없습니다. Hi-MD 형식 미디어라면 뒤로 이동한 뒤 ‘Hi-MD로 연결’을 선택해 주세요. 일반 MD 미디어라면 USB 케이블을 다시 연결한 뒤 NetMD로 재시도해 주세요.", "This disc cannot be read in NetMD mode. For Hi-MD-formatted media, go back and select ‘Connect with Hi-MD’. For a standard MiniDisc, reconnect USB and try NetMD again.")
                 : e
-                  ? `${n.message || "디스크를 찾지 못했습니다."}\nUSB 케이블을 다시 연결한 뒤 다시 시도해 주세요.`
+                ? `${n.message || wmdCustomText("디스크를 찾지 못했습니다.", "No disc was found.")}\n${wmdCustomText("USB 케이블을 다시 연결한 뒤 다시 시도해 주세요.", "Reconnect the USB cable and try again.")}`
                 : n.message ||
-                    "디스크 정보를 불러오지 못했습니다. 기기를 다시 연결해 주세요.",
+                  wmdCustomText("디스크 정보를 불러오지 못했습니다. 기기를 다시 연결해 주세요.", "Could not load disc information. Reconnect the recorder."),
             ),
             actions$f.setVisible(!0),
           ]),
@@ -201573,7 +201577,7 @@ function deleteTracks(e) {
             actions$8.setLoading(!1),
             actions$f.setErrorMessage(
               n.message ||
-                "트랙 삭제 후 디스크 정보를 다시 읽지 못했습니다. 디스크 다시 검색을 실행해 주세요.",
+        wmdCustomText("트랙 삭제 후 디스크 정보를 다시 읽지 못했습니다. 디스크 다시 검색을 실행해 주세요.", "Could not reload disc information after deleting tracks. Rescan the disc."),
             ),
             actions$f.setVisible(!0),
           ]),
@@ -201587,7 +201591,7 @@ function wipeDisc() {
   return async function (e) {
     if (
       !window.confirm(
-        "디스크의 모든 곡을 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
+      wmdCustomText("디스크의 모든 곡을 삭제할까요? 이 작업은 되돌릴 수 없습니다.", "Delete every track on the disc? This cannot be undone."),
       )
     )
       return false;
@@ -201605,7 +201609,7 @@ function wipeDisc() {
             actions$8.setLoading(!1),
             actions$f.setErrorMessage(
               (t == null ? void 0 : t.message) ||
-                "디스크 전체 삭제가 완료되지 않았습니다. 기기를 다시 연결한 뒤 디스크 내용을 확인해 주세요.",
+          wmdCustomText("디스크 전체 삭제가 완료되지 않았습니다. 기기를 다시 연결한 뒤 디스크 내용을 확인해 주세요.", "The disc wipe did not complete. Reconnect the recorder and check the disc contents."),
             ),
             actions$f.setVisible(!0),
           ]),
@@ -201670,7 +201674,7 @@ function moveTrack(e, t, r = !1) {
       (console.error("Track reorder failed:", g),
         window.alert(
           (g == null ? void 0 : g.message) ??
-            "트랙 순서 변경에 실패했습니다. 장치를 다시 연결한 뒤 확인해 주세요.",
+            wmdCustomText("트랙 순서 변경에 실패했습니다. 장치를 다시 연결한 뒤 확인해 주세요.", "Failed to reorder tracks. Reconnect the recorder and check the disc."),
         ));
     } finally {
       n(actions$8.setLoading(!1));
@@ -217471,7 +217475,7 @@ const Bar = Handle,
                 }),
               }),
               jsxRuntimeExports.jsx(ListItemText, {
-                children: "디스크 전체 보관",
+                    children: wmdCustomText("디스크 전체 보관", "Archive disc"),
               }),
             ],
           },
@@ -217492,7 +217496,7 @@ const Bar = Handle,
                 }),
               }),
               jsxRuntimeExports.jsx(ListItemText, {
-                children: "SCMS 정보 제거",
+                    children: wmdCustomText("SCMS 정보 제거", "Strip SCMS information"),
               }),
             ],
           },
@@ -217513,7 +217517,7 @@ const Bar = Handle,
                 }),
               }),
               jsxRuntimeExports.jsx(ListItemText, {
-                children: "모든 트랙 보호 해제",
+                    children: wmdCustomText("모든 트랙 보호 해제", "Unprotect all tracks"),
               }),
             ],
           },
@@ -217535,13 +217539,13 @@ const Bar = Handle,
               }),
               jsxRuntimeExports.jsxs(ListItemText, {
                 children: [
-                  Ze ? "끄기: " : "켜기: ",
+                      Ze ? wmdCustomText("끄기: ", "Disable: ") : wmdCustomText("켜기: ", "Enable: "),
                   jsxRuntimeExports.jsx(Tooltip$1, {
-                    title: "일부 기기에서 SP 녹음 속도를 높입니다",
+                    title: wmdCustomText("일부 기기에서 SP 녹음 속도를 높입니다", "Increase SP recording speed on some recorders"),
                     arrow: !0,
                     children: jsxRuntimeExports.jsx("span", {
                       className: t.toolTippedText,
-                      children: "SP 고속 녹음",
+                    children: wmdCustomText("SP 고속 녹음", "Fast SP recording"),
                     }),
                   }),
                 ],
@@ -217567,7 +217571,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "Hi-MD 전체 모드로 전환",
+                    children: wmdCustomText("Hi-MD 전체 모드로 전환", "Switch to full Hi-MD mode"),
                 }),
               ],
             },
@@ -217588,7 +217592,7 @@ const Bar = Handle,
                   : jsxRuntimeExports.jsx(ToggleOffIcon, { fontSize: "small" }),
               }),
               jsxRuntimeExports.jsxs(ListItemText, {
-                children: ["디스크 교체 감지 ", Fe ? "켜기" : "끄기"],
+                    children: [wmdCustomText("디스크 교체 감지 ", "Disc swap detection "), Fe ? wmdCustomText("켜기", "on") : wmdCustomText("끄기", "off")],
               }),
             ],
           },
@@ -217609,7 +217613,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "디스크 다시 검색",
+                    children: wmdCustomText("디스크 다시 검색", "Rescan disc"),
                 }),
               ],
             },
@@ -217632,7 +217636,7 @@ const Bar = Handle,
                     }),
                   }),
                   jsxRuntimeExports.jsx(ListItemText, {
-                    children: "홈브루 모드 바로가기",
+                    children: wmdCustomText("홈브루 모드 바로가기", "Homebrew mode shortcuts"),
                   }),
                 ],
               },
@@ -217652,7 +217656,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "홈브루 모드 열기",
+                    children: wmdCustomText("홈브루 모드 열기", "Enter homebrew mode"),
                 }),
               ],
             },
@@ -217675,7 +217679,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "디스크 이름 변경",
+                    children: wmdCustomText("디스크 이름 변경", "Rename disc"),
                 }),
               ],
             },
@@ -217696,7 +217700,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "디스크 전체 삭제",
+                    children: wmdCustomText("디스크 전체 삭제", "Wipe disc"),
                 }),
               ],
             },
@@ -217718,7 +217722,7 @@ const Bar = Handle,
                     }),
                   }),
                   jsxRuntimeExports.jsx(ListItemText, {
-                    children: "Hi-MD로 포맷",
+                    children: wmdCustomText("Hi-MD로 포맷", "Format as Hi-MD"),
                   }),
                 ],
               },
@@ -217738,7 +217742,7 @@ const Bar = Handle,
                     fontSize: "small",
                   }),
                 }),
-                jsxRuntimeExports.jsx(ListItemText, { children: "곡 인식" }),
+                  jsxRuntimeExports.jsx(ListItemText, { children: wmdCustomText("곡 인식", "Song recognition") }),
               ],
             },
             "song-recognition",
@@ -217758,7 +217762,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "CSV에서 제목 가져오기",
+                    children: wmdCustomText("CSV에서 제목 가져오기", "Import titles from CSV"),
                 }),
               ],
             },
@@ -217778,7 +217782,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "제목을 CSV로 내보내기",
+                    children: wmdCustomText("제목을 CSV로 내보내기", "Export titles to CSV"),
                 }),
               ],
             },
@@ -217805,14 +217809,14 @@ const Bar = Handle,
                   }),
                   jsxRuntimeExports.jsxs(ListItemText, {
                     children: [
-                      s ? "끄기: " : "켜기: ",
+                      s ? wmdCustomText("끄기: ", "Disable: ") : wmdCustomText("켜기: ", "Enable: "),
                       jsxRuntimeExports.jsx(Tooltip$1, {
                         title:
-                          "메인 화면에서 RH1 방식의 USB 추출 기능을 사용합니다.",
+                    wmdCustomText("메인 화면에서 RH1 방식의 USB 추출 기능을 사용합니다.", "Use RH1-style USB extraction from the main screen."),
                         arrow: !0,
                         children: jsxRuntimeExports.jsx("span", {
                           className: t.toolTippedText,
-                          children: "메인 화면 USB 추출",
+                    children: wmdCustomText("메인 화면 USB 추출", "Main-screen USB extraction"),
                         }),
                       }),
                     ],
@@ -218086,7 +218090,7 @@ const Bar = Handle,
           fullWidth: !0,
           children: [
             jsxRuntimeExports.jsx(DialogTitle, {
-              children: "디스크를 Hi-MD로 포맷할까요?",
+              children: wmdCustomText("디스크를 Hi-MD로 포맷할까요?", "Format the disc as Hi-MD?"),
             }),
             jsxRuntimeExports.jsx(DialogContent, {
               children: jsxRuntimeExports.jsxs(Alert, {
@@ -218094,11 +218098,11 @@ const Bar = Handle,
                 variant: "filled",
                 children: [
                   jsxRuntimeExports.jsx(AlertTitle, {
-                    children: "디스크의 모든 트랙이 삭제됩니다",
+                  children: wmdCustomText("디스크의 모든 트랙이 삭제됩니다", "Every track on the disc will be deleted"),
                   }),
-                  "현재 디스크의 ",
+                  wmdCustomText("현재 디스크의 ", "The current disc contains "),
                   (A == null ? void 0 : A.trackCount) ?? 0,
-                  "개 트랙과 제목 정보가 모두 삭제되며 복구할 수 없습니다. 포맷 중에는 RH10의 전원이나 USB 케이블을 분리하지 마세요.",
+                  wmdCustomText("개 트랙과 제목 정보가 모두 삭제되며 복구할 수 없습니다. 포맷 중에는 RH10의 전원이나 USB 케이블을 분리하지 마세요.", " tracks. All tracks and title information will be deleted and cannot be recovered. Do not power off the RH10 or disconnect USB while formatting."),
                 ],
               }),
             }),
@@ -218106,13 +218110,13 @@ const Bar = Handle,
               children: [
                 jsxRuntimeExports.jsx(Button$1, {
                   onClick: () => Nt(!1),
-                  children: "취소",
+                  children: wmdCustomText("취소", "Cancel"),
                 }),
                 jsxRuntimeExports.jsx(Button$1, {
                   variant: "contained",
                   color: "error",
                   onClick: Pt,
-                  children: "모두 삭제하고 Hi-MD로 포맷",
+                  children: wmdCustomText("모두 삭제하고 Hi-MD로 포맷", "Delete everything and format as Hi-MD"),
                 }),
               ],
             }),
@@ -226313,16 +226317,16 @@ const useStyles$n = makeStyles()((e) => ({
       children: [
         jsxRuntimeExports.jsx(DialogTitle, {
           id: "about-dialog-slide-title",
-          children: "설정",
+                children: wmdCustomText("설정", "Settings"),
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
             jsxRuntimeExports.jsx(DialogContentText, {
               className: n.header,
-              children: "화면",
+                  children: wmdCustomText("화면", "Appearance"),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "화면 테마",
+                    name: wmdCustomText("화면 테마", "Color theme"),
               classes: n,
               children: jsxRuntimeExports.jsxs(Select, {
                 className: n.wider,
@@ -226331,21 +226335,21 @@ const useStyles$n = makeStyles()((e) => ({
                 children: [
                   jsxRuntimeExports.jsx(MenuItem, {
                     value: "light",
-                    children: "밝게",
+                            children: wmdCustomText("밝게", "Light"),
                   }),
                   jsxRuntimeExports.jsx(MenuItem, {
                     value: "dark",
-                    children: "어둡게",
+                            children: wmdCustomText("어둡게", "Dark"),
                   }),
                   jsxRuntimeExports.jsx(MenuItem, {
                     value: "system",
-                    children: "시스템 설정",
+                            children: wmdCustomText("시스템 설정", "System setting"),
                   }),
                 ],
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "세로로 화면 채우기",
+                    name: wmdCustomText("세로로 화면 채우기", "Stretch vertically to fill the screen"),
               classes: n,
               formControl: !0,
               children: jsxRuntimeExports.jsx(Switch, {
@@ -226354,7 +226358,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "가로로 화면 채우기",
+                    name: wmdCustomText("가로로 화면 채우기", "Stretch horizontally to fill the screen"),
               classes: n,
               formControl: !0,
               children: jsxRuntimeExports.jsx(Switch, {
@@ -226368,10 +226372,10 @@ const useStyles$n = makeStyles()((e) => ({
             }),
             jsxRuntimeExports.jsx(DialogContentText, {
               className: n.header,
-              children: "기능",
+                  children: wmdCustomText("기능", "Functionality"),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "일본어 전각 제목 편집 사용",
+                    name: wmdCustomText("일본어 전각 제목 편집 사용", "Enable full-width title editing"),
               classes: n,
               formControl: !0,
               tooltip:
@@ -226382,7 +226386,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "디스크 보호 경고 표시",
+                    name: wmdCustomText("디스크 보호 경고 표시", "Show disc-protection warnings"),
               classes: n,
               formControl: !0,
               children: jsxRuntimeExports.jsx(Switch, {
@@ -226391,7 +226395,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "'디스크 전체 보관' 시 ZIP 파일 만들기",
+                    name: wmdCustomText("'디스크 전체 보관' 시 ZIP 파일 만들기", "Create a ZIP file when archiving a disc"),
               classes: n,
               formControl: !0,
               tooltip:
@@ -226402,7 +226406,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "ATRAC 추출 시 저속 호환 방식 사용",
+                    name: wmdCustomText("ATRAC 추출 시 저속 호환 방식 사용", "Use the slower compatibility method for ATRAC extraction"),
               classes: n,
               formControl: !0,
               tooltip:
@@ -226413,7 +226417,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "홈브루 모드 바로가기 표시",
+                    name: wmdCustomText("홈브루 모드 바로가기 표시", "Show homebrew mode shortcuts"),
               classes: n,
               formControl: !0,
               tooltip:
@@ -226424,7 +226428,7 @@ const useStyles$n = makeStyles()((e) => ({
               }),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "원본 스트림 다운로드 (전문가 기능)",
+                    name: wmdCustomText("원본 스트림 다운로드 (전문가 기능)", "Download raw streams (expert feature)"),
               classes: n,
               formControl: !0,
               tooltip:
@@ -226440,10 +226444,10 @@ const useStyles$n = makeStyles()((e) => ({
             }),
             jsxRuntimeExports.jsx(DialogContentText, {
               className: n.header,
-              children: "인코딩",
+                  children: wmdCustomText("인코딩", "Encoding"),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "LP / Hi-MD 인코더",
+                    name: wmdCustomText("LP / Hi-MD 인코더", "LP / Hi-MD encoder"),
               classes: n,
               children: jsxRuntimeExports.jsx(Select, {
                 className: n.wider,
@@ -226478,10 +226482,10 @@ const useStyles$n = makeStyles()((e) => ({
             }),
             jsxRuntimeExports.jsx(DialogContentText, {
               className: n.header,
-              children: "라이브러리",
+                  children: wmdCustomText("라이브러리", "Library"),
             }),
             jsxRuntimeExports.jsx(SimpleField, {
-              name: "사용할 음악 라이브러리",
+                    name: wmdCustomText("사용할 음악 라이브러리", "Music library to use"),
               classes: n,
               children: jsxRuntimeExports.jsxs(Select, {
                 className: n.wider,
@@ -226490,7 +226494,7 @@ const useStyles$n = makeStyles()((e) => ({
                 children: [
                   jsxRuntimeExports.jsx(
                     MenuItem,
-                    { value: -1, children: "사용 안 함" },
+                            { value: -1, children: wmdCustomText("사용 안 함", "Disabled") },
                     "library-none",
                   ),
                   LibraryServices.map((y2, a2) =>
@@ -226536,7 +226540,7 @@ const useStyles$n = makeStyles()((e) => ({
           children: jsxRuntimeExports.jsx(Button$1, {
             disabled: !Lt(),
             onClick: g2,
-            children: Ut() ? "저장 후 다시 열기" : "닫기",
+                  children: Ut() ? wmdCustomText("저장 후 다시 열기", "Save and reopen") : wmdCustomText("닫기", "Close"),
           }),
         }),
       ],
@@ -227207,14 +227211,14 @@ const useStyles$n = makeStyles()((e) => ({
           ? void 0
           : Ut.call(Dt));
         if (!jt) {
-          xt("진단 기능은 데스크톱 앱에서만 사용할 수 있습니다.");
+          xt(wmdCustomText("진단 기능은 데스크톱 앱에서만 사용할 수 있습니다.", "Diagnostics are available only in the desktop app."));
           return;
         }
         if (jt.devices.length === 0) {
           xt(
             jt.platform === "win32"
-              ? "MiniDisc 기기를 찾지 못했습니다. 전원·USB 케이블을 확인하고 Windows 장치 관리자에서 Sony 장치가 보이는지 확인해 주세요."
-              : "MiniDisc 기기를 찾지 못했습니다. 전원과 USB 케이블을 확인해 주세요.",
+              ? wmdCustomText("MiniDisc 기기를 찾지 못했습니다. 전원·USB 케이블을 확인하고 Windows 장치 관리자에서 Sony 장치가 보이는지 확인해 주세요.", "No MiniDisc recorder was found. Check power and USB, then confirm that the Sony device appears in Windows Device Manager.")
+              : wmdCustomText("MiniDisc 기기를 찾지 못했습니다. 전원과 USB 케이블을 확인해 주세요.", "No MiniDisc recorder was found. Check power and the USB cable."),
           );
           return;
         }
@@ -227225,12 +227229,12 @@ const useStyles$n = makeStyles()((e) => ({
               return jt.platform !== "win32" || !Lt.requiredDriver
                 ? zt
                 : Lt.driverStatus === "winusb"
-                  ? `${zt} · WinUSB 준비됨`
+              ? `${zt} · ${wmdCustomText("WinUSB 준비됨", "WinUSB ready")}`
                   : Lt.driverStatus === "usbstor"
-                    ? `${zt} · 현재 USBSTOR (WinUSB 설치 필요)`
+                ? `${zt} · ${wmdCustomText("현재 USBSTOR (WinUSB 설치 필요)", "currently USBSTOR (WinUSB required)")}`
                     : Lt.driverStatus === "other"
-                      ? `${zt} · 현재 ${Lt.driverName ?? "다른 드라이버"} (WinUSB 권장)`
-                      : `${zt} · WinUSB 상태 확인 필요`;
+                  ? `${zt} · ${wmdCustomText("현재", "currently")} ${Lt.driverName ?? wmdCustomText("다른 드라이버", "another driver")} ${wmdCustomText("(WinUSB 권장)", "(WinUSB recommended)")}`
+                  : `${zt} · ${wmdCustomText("WinUSB 상태 확인 필요", "check WinUSB status")}`;
             })
             .join(" · "),
         );
@@ -227271,7 +227275,7 @@ const useStyles$n = makeStyles()((e) => ({
         }
         let Lt = Ut.devices.find((Ft) => Ft.mode === jt);
         if (!Lt && Ut.platform === "darwin" && jt === "netmd") {
-          xt("NetMD USB 인터페이스가 안정될 때까지 기다리는 중입니다…");
+          xt(wmdCustomText("NetMD USB 인터페이스가 안정될 때까지 기다리는 중입니다…", "Waiting for the NetMD USB interface to become ready…"));
           for (let Ft = 0; Ft < 16 && !Lt; Ft++) {
             await new Promise((Ot) => setTimeout(Ot, 250));
             const Ot = await window.native.getMiniDiscDiagnostics();
@@ -227282,8 +227286,8 @@ const useStyles$n = makeStyles()((e) => ({
         if (!Lt && Ut.platform === "win32" && Ut.devices.length === 0) {
           xt(
             jt === "himd"
-              ? "Hi-MD USB 인터페이스로 전환되는 중입니다…"
-              : "NetMD USB 인터페이스로 전환되는 중입니다…",
+              ? wmdCustomText("Hi-MD USB 인터페이스로 전환되는 중입니다…", "Switching to the Hi-MD USB interface…")
+              : wmdCustomText("NetMD USB 인터페이스로 전환되는 중입니다…", "Switching to the NetMD USB interface…"),
           );
           for (let Ft = 0; Ft < 8 && !Lt; Ft++) {
             await new Promise((Ot) => setTimeout(Ot, 500));
@@ -227300,8 +227304,8 @@ const useStyles$n = makeStyles()((e) => ({
             (Lt.driverStatus === "usbstor" || Lt.driverStatus === "other")
           ) {
             Et({
-              title: "WinUSB 드라이버가 필요합니다",
-              message: `${Lt.mode.toUpperCase()} 장치(${Lt.vendorIdHex}:${Lt.productIdHex})가 ${Lt.driverName ?? "다른 드라이버"}로 연결되어 있습니다. Zadig에서 이 장치만 선택해 WinUSB로 교체한 뒤 다시 연결하세요.`,
+              title: wmdCustomText("WinUSB 드라이버가 필요합니다", "WinUSB driver required"),
+              message: wmdCustomText(`${Lt.mode.toUpperCase()} 장치(${Lt.vendorIdHex}:${Lt.productIdHex})가 ${Lt.driverName ?? "다른 드라이버"}로 연결되어 있습니다. Zadig에서 이 장치만 선택해 WinUSB로 교체한 뒤 다시 연결하세요.`, `${Lt.mode.toUpperCase()} device (${Lt.vendorIdHex}:${Lt.productIdHex}) is using ${Lt.driverName ?? "another driver"}. In Zadig, select only this device, replace its driver with WinUSB, and reconnect it.`),
               showDriverGuide: !0,
             });
             return;
@@ -227316,7 +227320,7 @@ const useStyles$n = makeStyles()((e) => ({
           jt === "himd" && zt
             ? {
                 title: wmdCustomText(
-                  "Hi-MD USB 인터페이스를 기다리고 있습니다",
+                  wmdCustomText("Hi-MD USB 인터페이스를 기다리고 있습니다", "Waiting for the Hi-MD USB interface"),
                   "Waiting for the Hi-MD USB interface",
                 ),
                 message:
@@ -227332,16 +227336,16 @@ const useStyles$n = makeStyles()((e) => ({
               }
             : jt === "netmd" && Bt
               ? {
-                title: "NetMD 모드로 연결할 수 없습니다",
-                message: `현재 기기의 USB 인터페이스가 Hi-MD 모드(${Bt.vendorIdHex}:${Bt.productIdHex})에 남아 있습니다. 이 표시만으로 디스크 포맷을 판단할 수는 없습니다. 일반 NetMD 포맷 미디어가 들어 있다면 USB 케이블을 뺐다가 다시 연결한 뒤 0x0286 NetMD로 바뀌었을 때 NetMD를 선택하세요. Hi-MD 포맷 미디어라면 “Hi-MD로 연결”을 선택하세요. 디스크를 지울 목적이 아니라면 포맷 버튼은 누르지 마세요.`,
+                title: wmdCustomText("NetMD 모드로 연결할 수 없습니다", "Cannot connect in NetMD mode"),
+                message: wmdCustomText(`현재 기기의 USB 인터페이스가 Hi-MD 모드(${Bt.vendorIdHex}:${Bt.productIdHex})에 남아 있습니다. 이 표시만으로 디스크 포맷을 판단할 수는 없습니다. 일반 NetMD 포맷 미디어가 들어 있다면 USB 케이블을 뺐다가 다시 연결한 뒤 0x0286 NetMD로 바뀌었을 때 NetMD를 선택하세요. Hi-MD 포맷 미디어라면 “Hi-MD로 연결”을 선택하세요. 디스크를 지울 목적이 아니라면 포맷 버튼은 누르지 마세요.`, `The recorder's USB interface remains in Hi-MD mode (${Bt.vendorIdHex}:${Bt.productIdHex}). This alone does not identify the disc format. If a standard NetMD-formatted disc is inserted, reconnect USB and select NetMD after the interface changes to 0x0286 NetMD. For Hi-MD-formatted media, select “Connect with Hi-MD”. Do not format unless you intend to erase the disc.`),
                 recommendedOption: 2,
-                recommendedLabel: "Hi-MD로 연결",
+                recommendedLabel: wmdCustomText("Hi-MD로 연결", "Connect with Hi-MD"),
                 }
               : {
-                  alertTitle: "MiniDisc 연결을 확인할 수 없습니다",
-                  title: "MiniDisc 기기를 찾을 수 없습니다",
+                  alertTitle: wmdCustomText("MiniDisc 연결을 확인할 수 없습니다", "Could not verify the MiniDisc connection"),
+                  title: wmdCustomText("MiniDisc 기기를 찾을 수 없습니다", "MiniDisc recorder not found"),
                   message:
-                    "기기의 전원, USB 케이블과 연결 상태를 확인한 뒤 다시 시도하세요.",
+                    wmdCustomText("기기의 전원, USB 케이블과 연결 상태를 확인한 뒤 다시 시도하세요.", "Check recorder power, the USB cable, and the connection, then try again."),
                 },
         );
       },
@@ -227409,7 +227413,7 @@ const useStyles$n = makeStyles()((e) => ({
           component: "h2",
           variant: "body2",
           children: wmdCustomText(
-            "MiniDisc 데스크톱 매니저",
+                wmdCustomText("MiniDisc 데스크톱 매니저", "MiniDisc desktop manager"),
             "MiniDisc desktop manager",
           ),
         }),
@@ -227427,7 +227431,7 @@ const useStyles$n = makeStyles()((e) => ({
                         align: "center",
                         className: t.spacing,
                         children: wmdCustomText(
-                          "사용할 디스크 모드를 선택하세요",
+                          wmdCustomText("사용할 디스크 모드를 선택하세요", "Choose the disc mode you want to use"),
                           "Choose the disc mode you want to use",
                         ),
                       }),
@@ -227466,7 +227470,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           variant: "subtitle1",
                                           className: t.modeCardSubtitle,
                                           children: wmdCustomText(
-                                            "일반 MD 모드",
+                                            wmdCustomText("일반 MD 모드", "Standard MD mode"),
                                             "Standard MD mode",
                                           ),
                                         }),
@@ -227475,7 +227479,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
                                           children: wmdCustomText(
-                                            "일반 MD와 MDLP 미디어의 녹음, 제목 편집, USB 다운로드에 사용합니다.",
+                                            wmdCustomText("일반 MD와 MDLP 미디어의 녹음, 제목 편집, USB 다운로드에 사용합니다.", "Record, edit titles, and download audio from standard MD and MDLP media."),
                                             "Record, edit titles, and download audio over USB with standard MD and MDLP media.",
                                           ),
                                         }),
@@ -227483,7 +227487,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           variant: "body2",
                                           className: t.modeCardAction,
                                           children: wmdCustomText(
-                                            "NetMD로 연결 →",
+                                            wmdCustomText("NetMD로 연결 →", "Connect with NetMD →"),
                                             "Connect with NetMD →",
                                           ),
                                         }),
@@ -227519,7 +227523,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           variant: "subtitle1",
                                           className: t.modeCardSubtitle,
                                           children: wmdCustomText(
-                                            "Hi-MD 미디어 모드",
+                                            wmdCustomText("Hi-MD 미디어 모드", "Hi-MD media mode"),
                                             "Hi-MD media mode",
                                           ),
                                         }),
@@ -227528,7 +227532,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
                                           children: wmdCustomText(
-                                            "Hi-MD 디스크와 Hi-MD 형식 미디어용입니다. 기기와 미디어에 따라 지원 범위가 다릅니다.",
+                                            wmdCustomText("Hi-MD 디스크와 Hi-MD 형식 미디어용입니다. 기기와 미디어에 따라 지원 범위가 다릅니다.", "For Hi-MD discs and Hi-MD-formatted media. Support varies by recorder and media."),
                                             "For Hi-MD discs and Hi-MD-formatted media. Support varies by recorder and media.",
                                           ),
                                         }),
@@ -227536,7 +227540,7 @@ const useStyles$n = makeStyles()((e) => ({
                                           variant: "body2",
                                           className: t.modeCardAction,
                                           children: wmdCustomText(
-                                            "Hi-MD로 연결 →",
+                                            wmdCustomText("Hi-MD로 연결 →", "Connect with Hi-MD →"),
                                             "Connect with Hi-MD →",
                                           ),
                                         }),
@@ -227550,7 +227554,7 @@ const useStyles$n = makeStyles()((e) => ({
                                 align: "center",
                                 className: t.modeHint,
                                 children: wmdCustomText(
-                                  "RH10에 일반 MD가 들어 있다면 NetMD를 선택하세요.",
+                                  wmdCustomText("RH10에 일반 MD가 들어 있다면 NetMD를 선택하세요.", "If a standard MiniDisc is inserted in the RH10, select NetMD."),
                                   "Choose NetMD when a standard MD is inserted in an RH10.",
                                 ),
                               }),
@@ -227559,7 +227563,7 @@ const useStyles$n = makeStyles()((e) => ({
                                   severity: "info",
                                   className: t.notice,
                                   children: wmdCustomText(
-                                    "범용 WinUSB를 한 번 설치하면 NetMD(0x0219)와 Hi-MD(0x021a)에 모두 적용됩니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.",
+                                    wmdCustomText("범용 WinUSB를 한 번 설치하면 NetMD(0x0219)와 Hi-MD(0x021a)에 모두 적용됩니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.", "Installing universal WinUSB once covers both NetMD (0x0219) and Hi-MD (0x021a). It does not switch automatically with USBSTOR for File Explorer."),
                                     "Install the universal WinUSB driver once to cover both NetMD (0x0219) and Hi-MD (0x021a). It does not switch automatically to the USBSTOR driver used by File Explorer.",
                                   ),
                                 }),
@@ -227572,7 +227576,7 @@ const useStyles$n = makeStyles()((e) => ({
                                     onClick: Mt,
                                     disabled: P,
                                     children: wmdCustomText(
-                                      "RH10 연결 진단",
+                                      wmdCustomText("RH10 연결 진단", "RH10 connection diagnostics"),
                                       "RH10 connection diagnostics",
                                     ),
                                   }),
@@ -227590,7 +227594,7 @@ const useStyles$n = makeStyles()((e) => ({
                                       },
                                       disabled: P,
                                       children: wmdCustomText(
-                                        "Zadig 드라이버 안내",
+                                        wmdCustomText("Zadig 드라이버 안내", "Zadig driver guide"),
                                         "Zadig driver guide",
                                       ),
                                     }),
@@ -227621,7 +227625,7 @@ const useStyles$n = makeStyles()((e) => ({
                         children: jsxRuntimeExports.jsx(FormHelperText, {
                           children: A.includes("LIBUSB_TRANSFER_TIMED_OUT")
                             ? wmdCustomText(
-                                "MiniDisc 기기 응답 시간이 초과되었습니다. 잠시 기다린 뒤 다시 연결해 주세요.",
+                                wmdCustomText("MiniDisc 기기 응답 시간이 초과되었습니다. 잠시 기다린 뒤 다시 연결해 주세요.", "The MiniDisc recorder timed out. Wait briefly, then reconnect it."),
                                 "The MiniDisc recorder did not respond in time. Wait a moment, then reconnect it.",
                               )
                             : A,
@@ -227666,7 +227670,7 @@ const useStyles$n = makeStyles()((e) => ({
                         children: [
                           jsxRuntimeExports.jsx("span", {
                             style: { verticalAlign: "middle" },
-                            children: "처음 사용하시나요? 사용 안내 보기",
+                            children: wmdCustomText("처음 사용하시나요? 사용 안내 보기", "New here? Open the user guide"),
                           }),
                           " ",
                           jsxRuntimeExports.jsx(OpenInNewIcon, {
@@ -227809,7 +227813,7 @@ const useStyles$n = makeStyles()((e) => ({
                   jsxRuntimeExports.jsx(AlertTitle, {
                     children:
                       (bt == null ? void 0 : bt.alertTitle) ||
-                      "잘못된 연결 모드가 차단되었습니다",
+                      wmdCustomText("잘못된 연결 모드가 차단되었습니다", "An incorrect connection mode was blocked"),
                   }),
                   bt == null ? void 0 : bt.message,
                 ],
@@ -227819,7 +227823,7 @@ const useStyles$n = makeStyles()((e) => ({
               children: [
                 jsxRuntimeExports.jsx(Button$1, {
                   onClick: () => Et(null),
-                  children: "닫기",
+                  children: wmdCustomText("닫기", "Close"),
                 }),
                 (bt == null ? void 0 : bt.showDriverGuide) &&
                   jsxRuntimeExports.jsx(Button$1, {
@@ -227832,7 +227836,7 @@ const useStyles$n = makeStyles()((e) => ({
                         ? void 0
                         : Dt.call(jt);
                     },
-                    children: "Zadig 안내 열기",
+                    children: wmdCustomText("Zadig 안내 열기", "Open the Zadig guide"),
                   }),
                 (bt == null ? void 0 : bt.recommendedOption) !== void 0 &&
                   jsxRuntimeExports.jsx(Button$1, {
@@ -237980,7 +237984,7 @@ function TrackRow({
         title: e.title ?? "",
         children: [
           e.fullWidthTitle ? `${e.fullWidthTitle} / ` : "",
-          e.title || "제목 없음",
+          e.title || wmdCustomText("제목 없음", "Untitled"),
         ],
       }),
       s &&
@@ -238178,14 +238182,14 @@ const W95RenameDialog = (e) =>
     marginUpDown: { marginTop: e.spacing(1.5), marginBottom: e.spacing(1.5) },
   })),
   nameMap = {
-    [RenameType.DISC]: "디스크",
-    [RenameType.GROUP]: "그룹",
-    [RenameType.HIMD]: "트랙",
-    [RenameType.HIMD_DISC]: "디스크",
-    [RenameType.TRACK]: "트랙",
-    [RenameType.TRACK_CONVERT_DIALOG]: "트랙",
-    [RenameType.TRACK_CONVERT_DIALOG_HIMD]: "트랙",
-    [RenameType.SONG_RECOGNITION_TITLE]: "트랙",
+    [RenameType.DISC]: wmdCustomText("디스크", "disc"),
+    [RenameType.GROUP]: wmdCustomText("그룹", "group"),
+    [RenameType.HIMD]: wmdCustomText("트랙", "track"),
+    [RenameType.HIMD_DISC]: wmdCustomText("디스크", "disc"),
+    [RenameType.TRACK]: wmdCustomText("트랙", "track"),
+    [RenameType.TRACK_CONVERT_DIALOG]: wmdCustomText("트랙", "track"),
+    [RenameType.TRACK_CONVERT_DIALOG_HIMD]: wmdCustomText("트랙", "track"),
+    [RenameType.SONG_RECOGNITION_TITLE]: wmdCustomText("트랙", "track"),
   },
   RenameDialog = (e) => {
     const t = useDispatch(),
@@ -238331,7 +238335,7 @@ const W95RenameDialog = (e) =>
       children: [
         jsxRuntimeExports.jsxs(DialogTitle, {
           id: "rename-dialog-title",
-          children: [st, " 이름 변경"],
+          children: [st, wmdCustomText(" 이름 변경", " rename")],
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
@@ -238356,7 +238360,7 @@ const W95RenameDialog = (e) =>
                       color: "error",
                       underline: "always",
                       style: { cursor: "pointer" },
-                      children: "일본어 전각 제목 편집 사용",
+                      children: wmdCustomText("일본어 전각 제목 편집 사용", "Enable full-width title editing"),
                     }),
                     "?",
                   ],
@@ -238370,7 +238374,7 @@ const W95RenameDialog = (e) =>
                       key: `himd-rename-${A}-${P ? "open" : "closed"}`,
                       autoFocus: !0,
                       id: "himdName",
-                      label: "제목",
+                      label: wmdCustomText("제목", "Title"),
                       type: "text",
                       fullWidth: !0,
                       className: n.marginUpDown,
@@ -238381,7 +238385,7 @@ const W95RenameDialog = (e) =>
                     jsxRuntimeExports.jsx(TextField, {
                       autoFocus: !0,
                       id: "himdAlbum",
-                      label: "앨범",
+                      label: wmdCustomText("앨범", "Album"),
                       type: "text",
                       fullWidth: !0,
                       className: n.marginUpDown,
@@ -238392,7 +238396,7 @@ const W95RenameDialog = (e) =>
                     jsxRuntimeExports.jsx(TextField, {
                       autoFocus: !0,
                       id: "himdArtist",
-                      label: "아티스트",
+                      label: wmdCustomText("아티스트", "Artist"),
                       type: "text",
                       fullWidth: !0,
                       className: n.marginUpDown,
@@ -238408,7 +238412,7 @@ const W95RenameDialog = (e) =>
                       key: `rename-${Ze}-${A}-${P ? "open" : "closed"}`,
                       autoFocus: !0,
                       id: "name",
-                      label: `${st} 이름`,
+                      label: wmdCustomText(`${st} 이름`, `${st} name`),
                       type: "text",
                       fullWidth: !0,
                       className: n.marginUpDown,
@@ -238420,7 +238424,7 @@ const W95RenameDialog = (e) =>
                       ot.includes(Capability.fullWidthSupport) &&
                       jsxRuntimeExports.jsx(TextField, {
                         id: "fullWidthTitle",
-                        label: `전각 ${st} 이름`,
+                        label: wmdCustomText(`전각 ${st} 이름`, `Full-width ${st} name`),
                         type: "text",
                         fullWidth: !0,
                         className: n.marginUpDown,
@@ -238434,11 +238438,11 @@ const W95RenameDialog = (e) =>
         }),
         jsxRuntimeExports.jsxs(DialogActions, {
           children: [
-            jsxRuntimeExports.jsx(Button$1, { onClick: lt, children: "취소" }),
+            jsxRuntimeExports.jsx(Button$1, { onClick: lt, children: wmdCustomText("취소", "Cancel") }),
             jsxRuntimeExports.jsx(Button$1, {
               color: "primary",
               onClick: At,
-              children: "변경",
+              children: wmdCustomText("변경", "Rename"),
             }),
           ],
         }),
@@ -238584,7 +238588,7 @@ const W95RenameDialog = (e) =>
       children: [
         jsxRuntimeExports.jsx(DialogTitle, {
           id: "alert-dialog-slide-title",
-          children: "MD에 녹음 중...",
+          children: wmdCustomText("MD에 녹음 중...", "Recording to MD..."),
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
@@ -238594,14 +238598,14 @@ const W95RenameDialog = (e) =>
                 severity: "info",
                 style: { marginBottom: 16 },
                 children:
-                  "Hi-MD는 초기 인증과 암호화 준비에 시간이 걸려 진행률이 한동안 0%로 보일 수 있습니다. 작업이 시작될 때까지 RH10의 전원이나 USB 케이블을 분리하지 마세요.",
+                  wmdCustomText("Hi-MD는 초기 인증과 암호화 준비에 시간이 걸려 진행률이 한동안 0%로 보일 수 있습니다. 작업이 시작될 때까지 RH10의 전원이나 USB 케이블을 분리하지 마세요.", "Hi-MD authentication and encryption setup can take time, so progress may remain at 0% for a while. Do not power off the RH10 or disconnect USB before the operation begins."),
               }),
             jsxRuntimeExports.jsx(DialogContentText, {
               id: "alert-dialog-slide-description",
               children:
                 Vt === 100 && P === Ze
-                  ? "파일 변환 완료"
-                  : `파일 변환 ${P + 1}/${Ze}: ${tt}`,
+                  ? wmdCustomText("파일 변환 완료", "File conversion complete")
+                  : wmdCustomText(`파일 변환 ${P + 1}/${Ze}: ${tt}`, `Converting file ${P + 1}/${Ze}: ${tt}`),
             }),
             jsxRuntimeExports.jsx(LinearProgress, {
               className: t.progressBar,
@@ -238616,7 +238620,7 @@ const W95RenameDialog = (e) =>
             jsxRuntimeExports.jsxs(DialogContentText, {
               id: "alert-dialog-slide-description",
               className: t.uploadLabel,
-              children: ["MD 전송 ", Fe, "/", Ze, ": ", ot],
+              children: [wmdCustomText("MD 전송 ", "MD transfer "), Fe, "/", Ze, ": ", ot],
             }),
             jsxRuntimeExports.jsx(LinearProgress, {
               className: t.progressBar,
@@ -238642,14 +238646,14 @@ const W95RenameDialog = (e) =>
                     onChange: Tt,
                     name: "notifyOnEnd",
                   }),
-                  label: "완료되면 알림",
+                  label: wmdCustomText("완료되면 알림", "Notify when complete"),
                 })
               : null,
             jsxRuntimeExports.jsx("div", { className: t.spacer }),
             jsxRuntimeExports.jsx(Button$1, {
               disabled: g,
               onClick: Ct,
-              children: g ? "현재 트랙 후 중지 중..." : "녹음 취소",
+              children: g ? wmdCustomText("현재 트랙 후 중지 중...", "Stopping after the current track...") : wmdCustomText("녹음 취소", "Cancel recording"),
             }),
           ],
         }),
@@ -238720,13 +238724,13 @@ const W95RenameDialog = (e) =>
       children: [
         jsxRuntimeExports.jsx(DialogTitle, {
           id: "record-dialog-slide-title",
-          children: "녹음 중...",
+          children: wmdCustomText("녹음 중...", "Recording..."),
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
             jsxRuntimeExports.jsx(DialogContentText, {
               id: "record-dialog-slide-description",
-              children: `트랙 녹음 ${g + 1}/${o}: ${S}`,
+              children: wmdCustomText(`트랙 녹음 ${g + 1}/${o}: ${S}`, `Recording track ${g + 1}/${o}: ${S}`),
             }),
             jsxRuntimeExports.jsx(LinearProgress, {
               className: t.progressBar,
@@ -238822,8 +238826,8 @@ const W95RenameDialog = (e) =>
         jsxRuntimeExports.jsx(DialogTitle, {
           id: "alert-dialog-slide-title",
           children: isUsbTimeout
-            ? "USB 응답 시간이 초과되었습니다."
-            : "예기치 않은 문제가 발생했습니다.",
+            ? wmdCustomText("USB 응답 시간이 초과되었습니다.", "USB response timed out.")
+            : wmdCustomText("예기치 않은 문제가 발생했습니다.", "An unexpected problem occurred."),
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
@@ -238833,27 +238837,27 @@ const W95RenameDialog = (e) =>
               component: "div",
               children: [
                 isUsbTimeout
-                  ? "MiniDisc 기기가 제한 시간 안에 응답하지 않았습니다. 녹음이나 전송 중이 아니라면 다음 순서로 다시 시도해 주세요."
-                  : "앱을 다시 시작해 주세요. 문제가 계속되면 다음 방법을 순서대로 시도해 보세요.",
+                  ? wmdCustomText("MiniDisc 기기가 제한 시간 안에 응답하지 않았습니다. 녹음이나 전송 중이 아니라면 다음 순서로 다시 시도해 주세요.", "The MiniDisc recorder did not respond before the timeout. If it is not recording or transferring, try the following steps in order.")
+                  : wmdCustomText("앱을 다시 시작해 주세요. 문제가 계속되면 다음 방법을 순서대로 시도해 보세요.", "Restart the app. If the problem continues, try the following steps in order."),
                 jsxRuntimeExports.jsxs("ol", {
                   children: [
                     jsxRuntimeExports.jsx("li", {
-                      children: "앱을 다시 시작합니다.",
+                      children: wmdCustomText("앱을 다시 시작합니다.", "Restart the app."),
                     }),
                     jsxRuntimeExports.jsx("li", {
                       children:
-                        "USB 허브를 사용하지 말고 다른 USB 포트나 케이블로 연결합니다.",
+                        wmdCustomText("USB 허브를 사용하지 말고 다른 USB 포트나 케이블로 연결합니다.", "Avoid USB hubs and try another USB port or cable."),
                     }),
                     jsxRuntimeExports.jsx("li", {
                       children:
-                        "디스크를 다시 넣거나 다른 MiniDisc로 확인합니다.",
+                        wmdCustomText("디스크를 다시 넣거나 다른 MiniDisc로 확인합니다.", "Reinsert the disc or try another MiniDisc."),
                     }),
                     jsxRuntimeExports.jsx("li", {
-                      children: "가능하면 다른 컴퓨터에서도 확인합니다.",
+                      children: wmdCustomText("가능하면 다른 컴퓨터에서도 확인합니다.", "If possible, test on another computer."),
                     }),
                   ],
                 }),
-                "같은 오류가 반복되면 기기나 드라이버 호환 문제일 수 있으니 오류 내용을 함께 알려주세요.",
+                wmdCustomText("같은 오류가 반복되면 기기나 드라이버 호환 문제일 수 있으니 오류 내용을 함께 알려주세요.", "If the same error repeats, it may be a recorder or driver compatibility issue. Include the error details when reporting it."),
               ],
             }),
             jsxRuntimeExports.jsx(Typography, {
@@ -238869,12 +238873,12 @@ const W95RenameDialog = (e) =>
             jsxRuntimeExports.jsx(Button$1, {
               onClick: A,
               size: "small",
-              children: "무시하고 계속",
+              children: wmdCustomText("무시하고 계속", "Ignore and continue"),
             }),
             jsxRuntimeExports.jsx(Button$1, {
               onClick: S,
               color: "primary",
-              children: "앱 다시 시작",
+              children: wmdCustomText("앱 다시 시작", "Restart app"),
             }),
           ],
         }),
@@ -239817,7 +239821,7 @@ const ConvertDialog = (e) => {
                         value: w2.title,
                         fullWidth: !0,
                         inputProps: {
-                          "aria-label": `${_2 + 1}번 트랙의 MD 저장 제목`,
+                          "aria-label": wmdCustomText(`${_2 + 1}번 트랙의 MD 저장 제목`, `MD title for track ${_2 + 1}`),
                         },
                         onClick: (Z2) => Z2.stopPropagation(),
                         onDoubleClick: (Z2) => Z2.stopPropagation(),
@@ -240035,7 +240039,7 @@ const ConvertDialog = (e) => {
       jsxRuntimeExports.jsx(DialogTitle, {
         id: "convert-dialog-slide-title",
         className: n.dialogTitle,
-        children: "녹음 설정",
+        children: wmdCustomText("녹음 설정", "Recording settings"),
       }),
       jsxRuntimeExports.jsxs(DialogContent, {
         className: n.dialogContent,
@@ -240049,7 +240053,7 @@ const ConvertDialog = (e) => {
                     component: "label",
                     variant: "caption",
                     color: "textSecondary",
-                    children: "녹음 모드",
+                    children: wmdCustomText("녹음 모드", "Recording mode"),
                   }),
                   jsxRuntimeExports.jsx(ToggleButtonGroup, {
                     value: Ut[0],
@@ -240086,7 +240090,7 @@ const ConvertDialog = (e) => {
                           component: "label",
                           variant: "caption",
                           color: "textSecondary",
-                          children: "트랙 제목 구성",
+                          children: wmdCustomText("트랙 제목 구성", "Track title format"),
                         }),
                         jsxRuntimeExports.jsx(FormControl, {
                           className: n.titleFormControl,
@@ -240098,27 +240102,27 @@ const ConvertDialog = (e) => {
                             children: [
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "filename",
-                                children: "파일명",
+                                children: wmdCustomText("파일명", "Filename"),
                               }),
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "title",
-                                children: "제목",
+                                children: wmdCustomText("제목", "Title"),
                               }),
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "album-title",
-                                children: "앨범 - 제목",
+                                children: wmdCustomText("앨범 - 제목", "Album - Title"),
                               }),
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "artist-title",
-                                children: "아티스트 - 제목",
+                                children: wmdCustomText("아티스트 - 제목", "Artist - Title"),
                               }),
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "title-artist",
-                                children: "제목 - 아티스트",
+                                children: wmdCustomText("제목 - 아티스트", "Title - Artist"),
                               }),
                               jsxRuntimeExports.jsx(MenuItem, {
                                 value: "artist-album-title",
-                                children: "아티스트 - 앨범 - 제목",
+                                children: wmdCustomText("아티스트 - 앨범 - 제목", "Artist - Album - Title"),
                               }),
                             ],
                           }),
@@ -240168,7 +240172,7 @@ const ConvertDialog = (e) => {
             style: { marginTop: "1em" },
             align: "center",
             children:
-              "제목 저장 공간이 부족합니다. 일부 제목이 잘릴 수 있습니다.",
+              wmdCustomText("제목 저장 공간이 부족합니다. 일부 제목이 잘릴 수 있습니다.", "There is not enough title storage space. Some titles may be truncated."),
           }),
           jsxRuntimeExports.jsx(Typography, {
             component: "h3",
@@ -240176,7 +240180,7 @@ const ConvertDialog = (e) => {
             hidden: Mt >= 0,
             style: { marginTop: "1em" },
             align: "center",
-            children: "디스크의 녹음 가능 공간이 부족합니다.",
+            children: wmdCustomText("디스크의 녹음 가능 공간이 부족합니다.", "There is not enough recording space on the disc."),
           }),
           jsxRuntimeExports.jsx(Typography, {
             component: "h3",
@@ -240185,7 +240189,7 @@ const ConvertDialog = (e) => {
             style: { marginTop: "1em" },
             align: "center",
             children:
-              "현재 인코더는 음질이 낮을 수 있습니다. 설정에서 다른 인코더를 선택할 수 있습니다.",
+              wmdCustomText("현재 인코더는 음질이 낮을 수 있습니다. 설정에서 다른 인코더를 선택할 수 있습니다.", "The current encoder may produce lower audio quality. You can select another encoder in Settings."),
           }),
           jsxRuntimeExports.jsx(Typography, {
             component: "h3",
@@ -240194,7 +240198,7 @@ const ConvertDialog = (e) => {
             style: { marginTop: "1em" },
             align: "center",
             children:
-              "선택한 인코더가 이 코덱을 지원하지 않습니다. 다른 코덱이나 인코더를 선택하세요.",
+              wmdCustomText("선택한 인코더가 이 코덱을 지원하지 않습니다. 다른 코덱이나 인코더를 선택하세요.", "The selected encoder does not support this codec. Choose another codec or encoder."),
           }),
           jsxRuntimeExports.jsxs("span", {
             className: n.durationsSpan,
@@ -240204,7 +240208,7 @@ const ConvertDialog = (e) => {
                 align: "center",
                 hidden: n2,
                 children: [
-                  "녹음 분량:",
+                  wmdCustomText("녹음 분량:", "Recording length:"),
                   " ",
                   Pt
                     ? jsxRuntimeExports.jsx(TooltipOrDefault, {
@@ -240253,7 +240257,7 @@ const ConvertDialog = (e) => {
                 hidden: n2,
                 className: o({ [n.durationNotFit]: Vt <= 0 }),
                 children: [
-                  "남은 용량:",
+                  wmdCustomText("남은 용량:", "Remaining capacity:"),
                   " ",
                   Pt
                     ? jsxRuntimeExports.jsx(TooltipOrDefault, {
@@ -240312,14 +240316,14 @@ const ConvertDialog = (e) => {
                 color: "error",
                 component: "p",
                 children: [
-                  "일본어 전각 문자가 포함되어 있습니다.",
+                  wmdCustomText("일본어 전각 문자가 포함되어 있습니다.", "Full-width Japanese characters are included."),
                   " ",
                   jsxRuntimeExports.jsx(Link, {
                     onClick: Yt,
                     color: "error",
                     underline: "always",
                     style: { cursor: "pointer" },
-                    children: "전각 제목 지원 켜기",
+                    children: wmdCustomText("전각 제목 지원 켜기", "Enable full-width title support"),
                   }),
                   "?",
                 ],
@@ -240331,7 +240335,7 @@ const ConvertDialog = (e) => {
             hidden: !n2,
             style: { marginTop: "1em" },
             align: "center",
-            children: "파일 정보 읽는 중...",
+            children: wmdCustomText("파일 정보 읽는 중...", "Reading file information..."),
           }),
           jsxRuntimeExports.jsxs(Accordion, {
             expanded: s2,
@@ -240409,16 +240413,16 @@ const ConvertDialog = (e) => {
                                     className: n.selectCheckboxTableCell,
                                   }),
                                   jsxRuntimeExports.jsx(TableCell, {
-                                    children: "제목",
+                                    children: wmdCustomText("제목", "Title"),
                                   }),
                                   jsxRuntimeExports.jsx(TableCell, {
-                                    children: "앨범",
+                                    children: wmdCustomText("앨범", "Album"),
                                   }),
                                   jsxRuntimeExports.jsx(TableCell, {
-                                    children: "아티스트",
+                                    children: wmdCustomText("아티스트", "Artist"),
                                   }),
                                   jsxRuntimeExports.jsx(TableCell, {
-                                    children: "길이",
+                                    children: wmdCustomText("길이", "Duration"),
                                   }),
                                 ],
                               }),
@@ -240442,7 +240446,7 @@ const ConvertDialog = (e) => {
                   jsxRuntimeExports.jsx(Backdrop, {
                     className: n.backdrop,
                     open: Zt,
-                    children: "여기에 음악 파일을 놓으면 목록에 추가됩니다",
+                    children: wmdCustomText("여기에 음악 파일을 놓으면 목록에 추가됩니다", "Drop audio files here to add them"),
                   }),
                   jsxRuntimeExports.jsx("input", { ...i2() }),
                 ],
@@ -240456,14 +240460,14 @@ const ConvertDialog = (e) => {
               jsxRuntimeExports.jsx(AccordionSummary, {
                 expandIcon: jsxRuntimeExports.jsx(ExpandMoreIcon, {}),
                 className: n.advancedOptionsAccordionSummary,
-                children: "고급 설정",
+                children: wmdCustomText("고급 설정", "Advanced options"),
               }),
               jsxRuntimeExports.jsxs(AccordionDetails, {
                 className: n.advancedOptionsAccordionContents,
                 children: [
                   Dt &&
                     jsxRuntimeExports.jsx(FormControlLabel, {
-                      label: "일본어 전각 제목 지원",
+                      label: wmdCustomText("일본어 전각 제목 지원", "Full-width Japanese title support"),
                       className: n.advancedOption,
                       control: jsxRuntimeExports.jsx(Checkbox, {
                         checked: Ze,
@@ -240471,7 +240475,7 @@ const ConvertDialog = (e) => {
                       }),
                     }),
                   jsxRuntimeExports.jsx(FormControlLabel, {
-                    label: "ReplayGain 사용",
+                    label: wmdCustomText("ReplayGain 사용", "Use ReplayGain"),
                     className: n.advancedOption,
                     control: jsxRuntimeExports.jsx(Checkbox, {
                       checked: a2,
@@ -240491,18 +240495,18 @@ const ConvertDialog = (e) => {
             onClick: y2,
             disabled: n2,
             className: n.showTracksOrderBtn,
-            children: s2 ? "트랙 목록 숨기기" : "트랙 목록 보기",
+            children: s2 ? wmdCustomText("트랙 목록 숨기기", "Hide track list") : wmdCustomText("트랙 목록 보기", "Show track list"),
           }),
           jsxRuntimeExports.jsx("div", { className: n.spacer }),
           jsxRuntimeExports.jsx(Button$1, {
             onClick: Kt,
             disabled: n2,
-            children: "취소",
+            children: wmdCustomText("취소", "Cancel"),
           }),
           jsxRuntimeExports.jsx(Button$1, {
             onClick: T2,
             disabled: n2 || Mt < 0 || l2,
-            children: "녹음 시작",
+            children: wmdCustomText("녹음 시작", "Start recording"),
           }),
         ],
       }),
@@ -241412,7 +241416,7 @@ const Transition$7 = React.forwardRef(function e(t, n) {
       children: [
         jsxRuntimeExports.jsxs(DialogTitle, {
           id: "dump-dialog-slide-title",
-          children: ["선택한 트랙 ", t ? "다운로드" : "녹음"],
+          children: [wmdCustomText("선택한 트랙 ", "Selected tracks: "), t ? wmdCustomText("다운로드", "download") : wmdCustomText("녹음", "record")],
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
@@ -241431,13 +241435,13 @@ const Transition$7 = React.forwardRef(function e(t, n) {
                             component: "p",
                             variant: "body2",
                             children:
-                              "홈브루 USB 추출 모드로 트랙을 다운로드합니다.",
+                              wmdCustomText("홈브루 USB 추출 모드로 트랙을 다운로드합니다.", "Download tracks using homebrew USB extraction mode."),
                           }),
                           jsxRuntimeExports.jsx(Typography, {
                             component: "p",
                             variant: "body2",
                             children:
-                              "실험 기능이므로 전송 중 기기 연결을 해제하지 마세요.",
+                              wmdCustomText("실험 기능이므로 전송 중 기기 연결을 해제하지 마세요.", "This is experimental. Do not disconnect the recorder during transfer."),
                           }),
                         ],
                       })
@@ -241445,8 +241449,8 @@ const Transition$7 = React.forwardRef(function e(t, n) {
                         component: "p",
                         variant: "body2",
                         children: Fe
-                          ? "Hi-MD 디스크의 오디오를 USB로 다운로드합니다."
-                          : "이 기기는 NetMD USB 오디오 전송을 지원합니다.",
+                          ? wmdCustomText("Hi-MD 디스크의 오디오를 USB로 다운로드합니다.", "Download audio from the Hi-MD disc over USB.")
+                          : wmdCustomText("이 기기는 NetMD USB 오디오 전송을 지원합니다.", "This recorder supports NetMD USB audio transfer."),
                       }),
                 })
               : jsxRuntimeExports.jsx(LineInDeviceSelect, {
@@ -241457,24 +241461,24 @@ const Transition$7 = React.forwardRef(function e(t, n) {
         }),
         jsxRuntimeExports.jsxs(DialogActions, {
           children: [
-            jsxRuntimeExports.jsx(Button$1, { onClick: P, children: "취소" }),
+            jsxRuntimeExports.jsx(Button$1, { onClick: P, children: wmdCustomText("취소", "Cancel") }),
             t
               ? jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, {
                   children: [
                     jsxRuntimeExports.jsx(Button$1, {
                       onClick: () => st(!0),
-                      children: "다운로드 후 변환",
+                      children: wmdCustomText("다운로드 후 변환", "Download and convert"),
                     }),
                     jsxRuntimeExports.jsx(Button$1, {
                       onClick: () => st(!1),
-                      children: "원본 다운로드",
+                      children: wmdCustomText("원본 다운로드", "Download original"),
                     }),
                   ],
                 })
               : jsxRuntimeExports.jsx(Button$1, {
                   onClick: tt,
                   disabled: s === "",
-                  children: "녹음 시작",
+                  children: wmdCustomText("녹음 시작", "Start recording"),
                 }),
           ],
         }),
@@ -243470,13 +243474,13 @@ const Transition$7 = React.forwardRef(function e(t, n) {
                       sx: { height: "18px" },
                     }),
                     onClick: Fe,
-                    children: "재생 / 일시정지",
+                    children: wmdCustomText("재생 / 일시정지", "Play / pause"),
                   }),
                 jsxRuntimeExports.jsx(ContextButton, {
                   icon: jsxRuntimeExports.jsx(Edit, { sx: { height: "18px" } }),
                   disabled: !Ze,
                   onClick: P,
-                  children: "이름 변경",
+                  children: wmdCustomText("이름 변경", "Rename"),
                 }),
                 jsxRuntimeExports.jsx(ContextButton, {
                   icon: jsxRuntimeExports.jsx(Delete, {
@@ -243484,7 +243488,7 @@ const Transition$7 = React.forwardRef(function e(t, n) {
                   }),
                   disabled: !Ze,
                   onClick: ot,
-                  children: "삭제",
+                  children: wmdCustomText("삭제", "Delete"),
                 }),
               ],
             }),
@@ -244173,7 +244177,7 @@ const Main$1 = (e) => {
           !S &&
           Ct.factoryMode &&
           (!window.confirm(
-            "USB 다운로드를 위해 RH10의 Homebrew 모드를 잠시 사용합니다. 계속할까요?",
+            wmdCustomText("USB 다운로드를 위해 RH10의 Homebrew 모드를 잠시 사용합니다. 계속할까요?", "Temporarily use the RH10 homebrew mode for USB download. Continue?"),
           ) ||
             !(await t(enableFactoryRippingModeInMainUi())))) ||
           t(actions$c.setVisible(!0));
@@ -244431,7 +244435,7 @@ const Main$1 = (e) => {
             jsxRuntimeExports.jsx(Typography, {
               component: "h1",
               variant: "h4",
-              children: g || "불러오는 중...",
+              children: g || wmdCustomText("불러오는 중...", "Loading..."),
             }),
             jsxRuntimeExports.jsxs("span", {
               children: [
@@ -244446,7 +244450,7 @@ const Main$1 = (e) => {
                   }),
                 o &&
                   jsxRuntimeExports.jsx(Tooltip$1, {
-                    title: "변경 사항 저장",
+                    title: wmdCustomText("변경 사항 저장", "Commit changes"),
                     children: jsxRuntimeExports.jsx(IconButton, {
                       "aria-label": "actions",
                       "aria-controls": "actions-menu",
@@ -244490,7 +244494,7 @@ const Main$1 = (e) => {
                                             {
                                               className:
                                                 qt.remainingTimeTooltip,
-                                              children: [$t, " 환산"],
+                                              children: [$t, wmdCustomText(" 환산", " equivalent")],
                                             },
                                           ),
                                         }),
@@ -244518,7 +244522,7 @@ const Main$1 = (e) => {
                                           `${formatTimeFromSeconds(n.used)} of ${formatTimeFromSeconds(n.total)} `,
                                           " ",
                                           $t,
-                                          " 환산",
+                                          wmdCustomText(" 환산", " equivalent"),
                                         ],
                                       }),
                                     },
@@ -244544,7 +244548,7 @@ const Main$1 = (e) => {
                     }),
                   ],
                 })
-              : "디스크가 없습니다",
+              : wmdCustomText("디스크가 없습니다", "No disc"),
         }),
         jsxRuntimeExports.jsxs(Toolbar, {
           className: Ft(qt.toolbar, {
@@ -244566,7 +244570,7 @@ const Main$1 = (e) => {
                   className: qt.toolbarLabel,
                   color: "inherit",
                   variant: "subtitle1",
-                  children: [O2 || L2, "개 선택됨"],
+                  children: [O2 || L2, wmdCustomText("개 선택됨", " selected")],
                 })
               : jsxRuntimeExports.jsxs(Box, {
                   className: qt.toolbarLabel,
@@ -244590,7 +244594,7 @@ const Main$1 = (e) => {
                         (n == null ? void 0 : n.fullWidthTitle) &&
                           `${n.fullWidthTitle} / `,
                         n
-                          ? (n == null ? void 0 : n.title) || "제목 없는 디스크"
+                          ? (n == null ? void 0 : n.title) || wmdCustomText("제목 없는 디스크", "Untitled disc")
                           : "",
                       ],
                     }),
@@ -244599,7 +244603,7 @@ const Main$1 = (e) => {
                       jsxRuntimeExports.jsx(Button$1, {
                         variant: "outlined",
                         size: "small",
-                        "aria-label": "편집 적용",
+                        "aria-label": wmdCustomText("편집 적용", "Apply edits"),
                         disabled: !hasPendingHiMDEdits(),
                         onClick: () => t(applyHiMDEditDraft()),
                         startIcon: jsxRuntimeExports.jsx(DoneIcon, {}),
@@ -244613,8 +244617,8 @@ const Main$1 = (e) => {
                             : "rgba(255,255,255,0.22)",
                         },
                         children: hasPendingHiMDEdits()
-                          ? `편집 적용 (${getHiMDEditSummary().count})`
-                          : "편집 적용",
+                          ? wmdCustomText(`편집 적용 (${getHiMDEditSummary().count})`, `Apply edits (${getHiMDEditSummary().count})`)
+                          : wmdCustomText("편집 적용", "Apply edits"),
                       }),
                   ],
                 }),
@@ -244622,21 +244626,21 @@ const Main$1 = (e) => {
               ? jsxRuntimeExports.jsx(React.Fragment, {
                   children: jsxRuntimeExports.jsx(Tooltip$1, {
                     title: n2
-                      ? "MD에서 USB로 다운로드"
-                      : "아날로그 입력으로 녹음",
+                      ? wmdCustomText("MD에서 USB로 다운로드", "Download from MD over USB")
+                      : wmdCustomText("아날로그 입력으로 녹음", "Record from analog input"),
                     children: jsxRuntimeExports.jsx(Button$1, {
                       className: qt.topbarLargeButton,
                       color: "inherit",
-                      "aria-label": n2 ? "다운로드" : "아날로그 녹음",
+                      "aria-label": n2 ? wmdCustomText("다운로드", "Download") : wmdCustomText("아날로그 녹음", "Analog recording"),
                       onClick: e2,
-                      children: n2 ? "다운로드" : "아날로그 녹음",
+                      children: n2 ? wmdCustomText("다운로드", "Download") : wmdCustomText("아날로그 녹음", "Analog recording"),
                     }),
                   }),
                 })
               : null,
             O2 > 0
               ? jsxRuntimeExports.jsx(Tooltip$1, {
-                  title: "삭제",
+                  title: wmdCustomText("삭제", "Delete"),
                   children: jsxRuntimeExports.jsx("span", {
                     children: jsxRuntimeExports.jsx(IconButton, {
                       className: qt.topbarButton,
@@ -244650,7 +244654,7 @@ const Main$1 = (e) => {
               : null,
             O2 > 0
               ? jsxRuntimeExports.jsx(Tooltip$1, {
-                  title: B2 ? "그룹 만들기" : "",
+                  title: B2 ? wmdCustomText("그룹 만들기", "Create group") : "",
                   children: jsxRuntimeExports.jsx("span", {
                     children: jsxRuntimeExports.jsx(IconButton, {
                       className: qt.topbarButton,
@@ -244664,7 +244668,7 @@ const Main$1 = (e) => {
               : null,
             O2 > 0
               ? jsxRuntimeExports.jsx(Tooltip$1, {
-                  title: "이름 변경",
+                  title: wmdCustomText("이름 변경", "Rename"),
                   children: jsxRuntimeExports.jsx("span", {
                     children: jsxRuntimeExports.jsx(IconButton, {
                       className: qt.topbarButton,
@@ -244692,7 +244696,7 @@ const Main$1 = (e) => {
               : null,
             L2 > 0
               ? jsxRuntimeExports.jsx(Tooltip$1, {
-                  title: "그룹 이름 변경",
+                  title: wmdCustomText("그룹 이름 변경", "Rename group"),
                   children: jsxRuntimeExports.jsx("span", {
                     children: jsxRuntimeExports.jsx(IconButton, {
                       className: qt.topbarButton,
@@ -244728,22 +244732,22 @@ const Main$1 = (e) => {
                             children: "#",
                           }),
                           jsxRuntimeExports.jsx(TableCell, {
-                            children: "제목",
+                            children: wmdCustomText("제목", "Title"),
                           }),
                           Ct.himdTitles &&
                             jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, {
                               children: [
                                 jsxRuntimeExports.jsx(TableCell, {
-                                  children: "앨범",
+                                  children: wmdCustomText("앨범", "Album"),
                                 }),
                                 jsxRuntimeExports.jsx(TableCell, {
-                                  children: "아티스트",
+                                  children: wmdCustomText("아티스트", "Artist"),
                                 }),
                               ],
                             }),
                           jsxRuntimeExports.jsx(TableCell, {
                             align: "right",
-                            children: "길이",
+                            children: wmdCustomText("길이", "Duration"),
                           }),
                         ],
                       }),
@@ -244901,7 +244905,7 @@ const Main$1 = (e) => {
                   ? jsxRuntimeExports.jsx(Backdrop, {
                       className: qt.backdrop,
                       open: Bt,
-                      children: "여기에 음악 파일을 놓아 녹음",
+                      children: wmdCustomText("여기에 음악 파일을 놓아 녹음", "Drop audio files here to record"),
                     })
                   : null,
               ],
@@ -244925,11 +244929,11 @@ const Main$1 = (e) => {
               onClick: () => {
                 (R2(null), Pt());
               },
-              children: "이 컴퓨터에서 파일 추가",
+              children: wmdCustomText("이 컴퓨터에서 파일 추가", "Add files from this computer"),
             }),
             jsxRuntimeExports.jsx(MenuItem, {
               onClick: A2,
-              children: "음악 라이브러리에서 추가",
+              children: wmdCustomText("음악 라이브러리에서 추가", "Add from music library"),
             }),
           ],
         }),
@@ -245737,9 +245741,11 @@ class SettingsResetErrorBoundary extends React.Component {
     const o = `${(t.stack ?? t.message).substring(0, 200)}...`,
       g = (t == null ? void 0 : t.message) === "Invariant failed";
     (g
-      ? window.alert(`드래그 화면 처리 중 오류가 발생했습니다. 앱을 다시 시작합니다.
+      ? window.alert(wmdCustomText(`드래그 화면 처리 중 오류가 발생했습니다. 앱을 다시 시작합니다.
 앱 설정은 보존되었습니다.
-${o}`)
+${o}`, `A drag-and-drop rendering error occurred. The app will restart.
+Your app settings have been preserved.
+${o}`))
       : this.state.wipeSettings
         ? (window.alert(`Unrecoverable error while initializing app. Your app settings have been deleted.
 ${o}
@@ -245756,10 +245762,6 @@ ServiceRegistry.mediaRecorderService = new MediaRecorderService();
 ServiceRegistry.mediaSessionService = new BrowserMediaSessionService(store);
 Object.defineProperty(window, "wmdVersion", { value: "1.5.4", writable: !1 });
 const originalApplicationTitle = document.title;
-const wmdCustomUILanguage =
-  localStorage.getItem("wmdUiLanguage") ||
-  (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
-const wmdCustomText = (e, t) => (wmdCustomUILanguage === "ko" ? e : t);
 localStorage.setItem("version", window.wmdVersion);
 (function e() {
   var t;

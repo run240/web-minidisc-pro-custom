@@ -40,6 +40,9 @@ jobs:
       - name: Run Hi-MD edit regression test
         run: npm run test:himd-edit-batch
 
+      - name: Audit Korean and English UI strings
+        run: npm run test:i18n
+
       - name: Build unpacked Windows application
         run: npm run pack:custom
 
