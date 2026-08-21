@@ -14,6 +14,7 @@
     "build:custom": "node scripts/build-custom.mjs",
     "test:himd-edit-batch": "npm run build:custom && node scripts/test-himd-edit-batch.cjs",
     "test:i18n": "node scripts/check-windows-i18n.cjs",
+    "test:security-dependencies": "node scripts/test-security-dependencies.cjs",
     "pack:custom": "npm run build:custom && electron-builder --dir --win --x64",
     "release:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-release.ps1",
     "start": "npm run build && NODE_ENV=development electron ./dist/main.js",
@@ -56,6 +57,7 @@
     "electron-context-menu": "^3.6.1",
     "electron-prompt": "^1.7.0",
     "electron-store": "^8.1.0",
+    "expr-eval": "npm:expr-eval-fork@3.0.3",
     "ffmpeg-static": "^5.3.0",
     "himd-js": "^0.2.12",
     "jconv": "^0.1.5",
@@ -74,12 +76,13 @@
     "@types/electron-prompt": "^1.6.5",
     "@types/node": "^18.11.9",
     "@types/node-fetch": "^2.6.2",
-    "electron": "^31.2.1",
+    "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
     "prettier": "^2.7.1",
     "typescript": "^5.9.3"
   },
   "overrides": {
+    "expr-eval": "$expr-eval",
     "yauzl": "^3.3.1"
   }
 }

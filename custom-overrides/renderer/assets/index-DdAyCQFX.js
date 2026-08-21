@@ -1,3 +1,5 @@
+import { evaluateArithmeticExpression } from "./safe-expression-evaluator.mjs";
+
 const wmdCustomUILanguage =
   localStorage.getItem("wmdUiLanguage") ||
   (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
@@ -169700,7 +169702,9 @@ function evaluate(e, t, n) {
                 resolveExpression(S, n),
               ),
             )));
-    else if (st === IVAR)
+    else if (st === IVAR) {
+      if (/^__proto__|prototype|constructor$/.test(tt.value))
+        throw new Error("prototype access detected");
       if (tt.value in t.functions) o.push(t.functions[tt.value]);
       else if (tt.value in t.unaryOps && t.parser.isOperatorEnabled(tt.value))
         o.push(t.unaryOps[tt.value]);
@@ -169709,7 +169713,7 @@ function evaluate(e, t, n) {
         if (lt !== void 0) o.push(lt);
         else throw new Error("undefined variable: " + tt.value);
       }
-    else if (st === IOP1)
+    } else if (st === IOP1)
       ((g = o.pop()),
         (A = t.unaryOps[tt.value]),
         o.push(A(resolveExpression(g, n))));
@@ -171722,7 +171726,6 @@ function requireAssembler() {
   (Object.defineProperty(assembler, "__esModule", { value: !0 }),
     (assembler.Assembler = assembler.AssemblerSyntaxError = void 0));
   const t = requireUtils$3(),
-    n = require$$1$2,
     o = requireLib(),
     g = e(require$$3$2),
     s = requireKeystoneArm(),
@@ -171797,7 +171800,7 @@ function requireAssembler() {
           let Ct = this.removeComments(Rt),
             Tt = Ct.replace(/\<([^\<])*\>/g, (Mt) => {
               let Nt = A(Mt.substring(1, Mt.length - 1), tt, st);
-              return `${n.Parser.evaluate(Nt)}`;
+              return `${evaluateArithmeticExpression(Nt)}`;
             });
           if (
             (Ct !== Tt &&

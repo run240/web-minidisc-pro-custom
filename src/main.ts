@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, protocol, dialog, FileFilter, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, dialog, FileFilter, screen, net } from 'electron';
 import { importKeys } from 'networkwm-js';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import os from 'os';
 import fs from 'fs';
 import { EWMDHiMD, EWMDNetMD } from './wmd/translations';
@@ -18,6 +19,18 @@ import { WebUSBInterop } from './wusb-interop';
 import { buildCompactConnectionDiagnostics, getMiniDiscDiagnostics } from './device-diagnostics';
 
 const getOfRenderer = (...p: string[]) => path.join(__dirname, '..', 'renderer', ...p);
+
+protocol.registerSchemesAsPrivileged([{
+    scheme: 'sandbox',
+    privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+        codeCache: true,
+    },
+}]);
 
 async function ewmdOpenDialog(window: BrowserWindow, filters: FileFilter[], directory?: boolean){
     const res = await dialog.showOpenDialog(window, { filters, properties: [directory ? 'openDirectory' : 'openFile'] });
@@ -529,23 +542,28 @@ contextMenu({
 });
 
 app.whenReady().then(() => {
-    protocol.registerFileProtocol('sandbox', (rq, callback) => {
+    protocol.handle('sandbox', async rq => {
         let decodedPath: string;
         try {
-            decodedPath = decodeURI(rq.url.substring('sandbox://'.length));
+            decodedPath = decodeURI(rq.url.substring('sandbox://'.length)).replace(/[\\/]$/, '');
         } catch {
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 400 });
         }
         const filePath = path.normalize(decodedPath.replace(/^[/\\]+/, ''));
         if (path.isAbsolute(filePath) || /^[a-zA-Z]:/.test(filePath) || filePath.split(path.sep).includes('..')) {
             console.warn(`[SANDBOX]: Rejected unsafe path ${rq.url}`);
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 403 });
         }
         const tgt = getOfRenderer(filePath);
         console.log(`[SANDBOX]: Requested ${tgt}`);
-        callback(tgt);
+        const response = await net.fetch(pathToFileURL(tgt).toString());
+        const headers = new Headers(response.headers);
+        headers.set('Access-Control-Allow-Origin', '*');
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
     });
     createWindow();
 });

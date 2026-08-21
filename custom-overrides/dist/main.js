@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const networkwm_js_1 = require("networkwm-js");
 const path_1 = __importDefault(require("path"));
+const url_1 = require("url");
 const os_1 = __importDefault(require("os"));
 const fs_1 = __importDefault(require("fs"));
 const translations_1 = require("./wmd/translations");
@@ -35,6 +36,17 @@ function appendDiagnosticLog(category, value) {
 process.on('uncaughtExceptionMonitor', error => appendDiagnosticLog('MAIN uncaughtException', error));
 process.on('unhandledRejection', reason => appendDiagnosticLog('MAIN unhandledRejection', reason));
 const getOfRenderer = (...p) => path_1.default.join(__dirname, '..', 'renderer', ...p);
+electron_1.protocol.registerSchemesAsPrivileged([{
+    scheme: 'sandbox',
+    privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+        codeCache: true,
+    },
+}]);
 async function ewmdOpenDialog(window, filters, directory) {
     const res = await electron_1.dialog.showOpenDialog(window, { filters, properties: [directory ? 'openDirectory' : 'openFile'] });
     if (res.canceled)
@@ -2452,14 +2464,13 @@ async function integrate(window) {
     showInspectElement: false,
 });
 electron_1.app.whenReady().then(() => {
-    electron_1.protocol.registerFileProtocol('sandbox', (rq, callback) => {
+    electron_1.protocol.handle('sandbox', async (rq) => {
         let decodedPath;
         try {
-            decodedPath = decodeURI(rq.url.substring('sandbox://'.length));
+            decodedPath = decodeURI(rq.url.substring('sandbox://'.length)).replace(/[\\/]$/, '');
         }
         catch {
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 400 });
         }
         const filePath = path_1.default.normalize(decodedPath.replace(/^[/\\]+/, ''));
         if (path_1.default.isAbsolute(filePath) || /^[a-zA-Z]:/.test(filePath) || filePath.split(path_1.default.sep).includes('..')) {
@@ -2468,12 +2479,18 @@ electron_1.app.whenReady().then(() => {
                 normalizedPath: filePath,
                 at: Date.now(),
             });
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 403 });
         }
         const tgt = getOfRenderer(filePath);
         console.log(`[SANDBOX]: Requested ${tgt}`);
-        callback(tgt);
+        const response = await electron_1.net.fetch((0, url_1.pathToFileURL)(tgt).toString());
+        const headers = new Headers(response.headers);
+        headers.set('Access-Control-Allow-Origin', '*');
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
     });
     createWindow();
 });
