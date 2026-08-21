@@ -1434,7 +1434,6 @@ exports.CHANGELOG = [
         'Service': '서비스',
         'Firmware version': '펌웨어 버전',
         'Mode': '모드',
-        'RH10 연결 진단': 'MiniDisc 연결 진단',
         'Windows에서는 NetMD(0x0219)와 Hi-MD(0x021a)에 WinUSB를 각각 설치해야 합니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.': 'Windows에서는 연결할 MiniDisc 기기와 모드에 맞는 WinUSB 드라이버가 필요합니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.',
         'Open Devtools': '개발자 도구 열기',
         'Use a Default Download Directory': '기본 다운로드 폴더 사용',
