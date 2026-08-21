@@ -4,8 +4,5 @@
     <pe-file path="Web MiniDisc Pro.exe">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="resources/app/extras/wmdp-driver-helper.exe">
-      <authenticode-sign />
-    </pe-file>
   </zip-file>
 </artifact-configuration>

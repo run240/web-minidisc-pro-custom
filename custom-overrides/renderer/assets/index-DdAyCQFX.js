@@ -201306,7 +201306,10 @@ function pair(e, t) {
         if (localStorage.getItem("wmdPendingHiMDFormat") === "1") {
           const S = ServiceRegistry.netmdService.completePendingHiMDFormat;
           const T = window.confirm(
-            "방금 Hi-MD로 전환한 디스크가 현재 기기에 들어 있습니까?\n\n확인을 누르면 Hi-MD 파일시스템 초기화를 마무리하며 디스크의 기존 데이터가 모두 삭제됩니다. 다른 디스크를 넣었다면 취소를 누르세요.",
+            wmdCustomText(
+              "방금 Hi-MD로 전환한 디스크가 현재 기기에 들어 있습니까?\n\n확인을 누르면 Hi-MD 파일시스템 초기화를 마무리하며 디스크의 기존 데이터가 모두 삭제됩니다. 다른 디스크를 넣었다면 취소를 누르세요.",
+              "Is the disc you just switched to Hi-MD still in the recorder?\n\nSelect OK to finish initializing the Hi-MD filesystem. This deletes all existing data on the disc. Select Cancel if you inserted a different disc.",
+            ),
           );
           if (!T) {
             localStorage.removeItem("wmdPendingHiMDFormat");
@@ -201314,7 +201317,10 @@ function pair(e, t) {
             (await S.call(ServiceRegistry.netmdService),
               localStorage.removeItem("wmdPendingHiMDFormat"),
               window.alert(
-                "Hi-MD 파일시스템 초기화와 읽기 검증이 완료되었습니다.",
+                wmdCustomText(
+                  "Hi-MD 파일시스템 초기화와 읽기 검증이 완료되었습니다.",
+                  "Hi-MD filesystem initialization and read verification are complete.",
+                ),
               ));
           } else if (!/Mac/i.test(navigator.platform || "")) {
             localStorage.removeItem("wmdPendingHiMDFormat");
@@ -201620,14 +201626,20 @@ function formatToHiMD() {
         e(actions$8.setMainView("WELCOME")),
         n &&
           window.alert(
-            "Hi-MD 모드 전환 명령을 보냈습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하세요. 이어지는 파일시스템 초기화와 검증이 끝날 때까지 기기의 전원이나 USB 케이블을 분리하지 마세요.",
+            wmdCustomText(
+              "Hi-MD 모드 전환 명령을 보냈습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하세요. 이어지는 파일시스템 초기화와 검증이 끝날 때까지 기기의 전원이나 USB 케이블을 분리하지 마세요.",
+              "The Hi-MD mode-switch command was sent. Disconnect and reconnect the USB cable, then select Hi-MD. Do not power off the recorder or disconnect USB again until filesystem initialization and verification finish.",
+            ),
           ));
     } catch (S) {
       e(actions$8.setLoading(!1));
       if (n) {
         (e(actions$8.setMainView("WELCOME")),
           window.alert(
-            "Hi-MD 모드 전환 중 기존 NetMD USB 연결이 종료되었습니다. 이는 정상적인 모드 전환 과정일 수 있습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하여 파일시스템 초기화를 마무리하세요.",
+            wmdCustomText(
+              "Hi-MD 모드 전환 중 기존 NetMD USB 연결이 종료되었습니다. 이는 정상적인 모드 전환 과정일 수 있습니다. USB 케이블을 뺐다가 다시 연결한 뒤 Hi-MD를 선택하여 파일시스템 초기화를 마무리하세요.",
+              "The previous NetMD USB connection ended during the Hi-MD mode switch. This can be a normal part of the transition. Disconnect and reconnect the USB cable, then select Hi-MD to finish filesystem initialization.",
+            ),
           ));
         return;
       }
@@ -217824,7 +217836,7 @@ const Bar = Handle,
                   }),
                 }),
                 jsxRuntimeExports.jsx(ListItemText, {
-                  children: "기기 연결 종료",
+                  children: wmdCustomText("기기 연결 종료", "Disconnect recorder"),
                 }),
               ],
             },
@@ -217843,7 +217855,9 @@ const Bar = Handle,
                   fontSize: "small",
                 }),
               }),
-              jsxRuntimeExports.jsx(ListItemText, { children: "설정" }),
+              jsxRuntimeExports.jsx(ListItemText, {
+                children: wmdCustomText("설정", "Settings"),
+              }),
             ],
           },
           "settings",
@@ -217865,7 +217879,7 @@ const Bar = Handle,
                 }),
               }),
               jsxRuntimeExports.jsx(ListItemText, {
-                children: "레트로 모드 (베타)",
+                children: wmdCustomText("레트로 모드 (베타)", "Retro mode (beta)"),
               }),
             ],
           },
@@ -217887,7 +217901,7 @@ const Bar = Handle,
                     }),
                   }),
                   jsxRuntimeExports.jsx(ListItemText, {
-                    children: "자체 진단",
+                    children: wmdCustomText("자체 진단", "Self test"),
                   }),
                 ],
               },
@@ -217908,7 +217922,7 @@ const Bar = Handle,
                 }),
               }),
               jsxRuntimeExports.jsx(ListItemText, {
-                children: "프로그램 정보",
+                children: wmdCustomText("프로그램 정보", "About"),
               }),
             ],
           },
@@ -217927,7 +217941,9 @@ const Bar = Handle,
                   fontSize: "small",
                 }),
               }),
-              jsxRuntimeExports.jsx(ListItemText, { children: "변경 내역" }),
+              jsxRuntimeExports.jsx(ListItemText, {
+                children: wmdCustomText("변경 내역", "Changelog"),
+              }),
             ],
           },
           "changelog",
@@ -217952,7 +217968,7 @@ const Bar = Handle,
                   target: "_blank",
                   ref: st,
                   onClick: Kt,
-                  children: "도움말 및 FAQ",
+                  children: wmdCustomText("도움말 및 FAQ", "Support and FAQ"),
                 }),
               }),
             ],
@@ -217979,7 +217995,7 @@ const Bar = Handle,
                   target: "_blank",
                   ref: tt,
                   onClick: Jt,
-                  children: "GitHub 소스 보기",
+                  children: wmdCustomText("GitHub 소스 보기", "View source on GitHub"),
                 }),
               }),
             ],
@@ -218006,7 +218022,7 @@ const Bar = Handle,
                   target: "_blank",
                   ref: lt,
                   onClick: Qt,
-                  children: "후원하기",
+                  children: wmdCustomText("후원하기", "Donate"),
                 }),
               }),
             ],
@@ -218454,7 +218470,10 @@ const Slide = reactExports.forwardRef(function e(t, n) {
                 children: [
                   jsxRuntimeExports.jsx("span", {
                     style: { flex: "1 1 auto" },
-                    children: "About Web MiniDisc Pro",
+                    children: wmdCustomText(
+                      "Web MiniDisc Pro Custom 정보",
+                      "About Web MiniDisc Pro Custom",
+                    ),
                   }),
                   jsxRuntimeExports.jsx(Button, {
                     onClick: e.handleClose,
@@ -218464,7 +218483,10 @@ const Slide = reactExports.forwardRef(function e(t, n) {
               }),
               jsxRuntimeExports.jsxs(DialogWindowContent, {
                 children: [
-                  "Web MiniDisc Pro uses",
+                  wmdCustomText(
+                    "Web MiniDisc Pro Custom은 다음 프로젝트를 사용합니다.",
+                    "Web MiniDisc Pro Custom uses",
+                  ),
                   jsxRuntimeExports.jsxs("ul", {
                     children: [
                       jsxRuntimeExports.jsxs("li", {
@@ -218623,12 +218645,18 @@ const Slide = reactExports.forwardRef(function e(t, n) {
       children: [
         jsxRuntimeExports.jsx(DialogTitle, {
           id: "about-dialog-slide-title",
-          children: "About Web MiniDisc Pro",
+          children: wmdCustomText(
+            "Web MiniDisc Pro Custom 정보",
+            "About Web MiniDisc Pro Custom",
+          ),
         }),
         jsxRuntimeExports.jsxs(DialogContent, {
           children: [
             jsxRuntimeExports.jsx(DialogContentText, {
-              children: "Web MiniDisc Pro uses",
+              children: wmdCustomText(
+                "Web MiniDisc Pro Custom은 다음 프로젝트를 사용합니다.",
+                "Web MiniDisc Pro Custom uses",
+              ),
             }),
             jsxRuntimeExports.jsxs("ul", {
               children: [
@@ -227287,11 +227315,20 @@ const useStyles$n = makeStyles()((e) => ({
         Et(
           jt === "himd" && zt
             ? {
-                title: "Hi-MD USB 인터페이스를 기다리고 있습니다",
+                title: wmdCustomText(
+                  "Hi-MD USB 인터페이스를 기다리고 있습니다",
+                  "Waiting for the Hi-MD USB interface",
+                ),
                 message:
-                  "현재 기기는 NetMD USB 인터페이스로 보입니다. 기존 Hi-MD 미디어를 따로 사용하려면 ‘Hi-MD 준비 / 포맷’에서 RAM 패치만 적용할 수 있습니다. 일반 MD 자체를 Hi-MD로 바꾸려는 경우에만 포맷을 선택하세요.",
+                  wmdCustomText(
+                    "현재 기기는 NetMD USB 인터페이스로 보입니다. 기존 Hi-MD 미디어를 따로 사용하려면 ‘Hi-MD 준비 / 포맷’에서 RAM 패치만 적용할 수 있습니다. 일반 MD 자체를 Hi-MD로 바꾸려는 경우에만 포맷을 선택하세요.",
+                    "The recorder currently exposes its NetMD USB interface. To use an existing Hi-MD disc, open ‘Prepare / format Hi-MD’ and apply only the RAM patch. Choose format only when converting the standard MiniDisc itself to Hi-MD.",
+                  ),
                 recommendedOption: 2,
-                recommendedLabel: "Hi-MD 준비 / 포맷",
+                recommendedLabel: wmdCustomText(
+                  "Hi-MD 준비 / 포맷",
+                  "Prepare / format Hi-MD",
+                ),
               }
             : jt === "netmd" && Bt
               ? {
@@ -227363,7 +227400,7 @@ const useStyles$n = makeStyles()((e) => ({
             jsxRuntimeExports.jsx(Typography, {
               component: "h1",
               variant: "h4",
-              children: "Web MiniDisc Pro",
+              children: "Web MiniDisc Pro Custom",
             }),
             jsxRuntimeExports.jsx(TopMenu, {}),
           ],
@@ -227371,7 +227408,10 @@ const useStyles$n = makeStyles()((e) => ({
         jsxRuntimeExports.jsx(Typography, {
           component: "h2",
           variant: "body2",
-          children: "Sony MiniDisc 데스크톱 매니저",
+          children: wmdCustomText(
+            "MiniDisc 데스크톱 매니저",
+            "MiniDisc desktop manager",
+          ),
         }),
         jsxRuntimeExports.jsx(Box, {
           className: t.main,
@@ -227386,7 +227426,10 @@ const useStyles$n = makeStyles()((e) => ({
                         variant: "subtitle1",
                         align: "center",
                         className: t.spacing,
-                        children: "사용할 디스크 모드를 선택하세요",
+                        children: wmdCustomText(
+                          "사용할 디스크 모드를 선택하세요",
+                          "Choose the disc mode you want to use",
+                        ),
                       }),
                       (e2 = window.native) != null && e2.himdFullInterface
                         ? jsxRuntimeExports.jsxs(React.Fragment, {
@@ -227408,7 +227451,7 @@ const useStyles$n = makeStyles()((e) => ({
                                               className: t.discIcon,
                                             }),
                                             jsxRuntimeExports.jsx(Chip, {
-                                              label: "일반 MD",
+                                              label: wmdCustomText("일반 MD", "Standard MD"),
                                               color: "primary",
                                               size: "small",
                                             }),
@@ -227422,19 +227465,27 @@ const useStyles$n = makeStyles()((e) => ({
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "subtitle1",
                                           className: t.modeCardSubtitle,
-                                          children: "일반 MD 모드",
+                                          children: wmdCustomText(
+                                            "일반 MD 모드",
+                                            "Standard MD mode",
+                                          ),
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
-                                          children:
+                                          children: wmdCustomText(
                                             "일반 MD와 MDLP 미디어의 녹음, 제목 편집, USB 다운로드에 사용합니다.",
+                                            "Record, edit titles, and download audio over USB with standard MD and MDLP media.",
+                                          ),
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           className: t.modeCardAction,
-                                          children: "NetMD로 연결 →",
+                                          children: wmdCustomText(
+                                            "NetMD로 연결 →",
+                                            "Connect with NetMD →",
+                                          ),
                                         }),
                                       ],
                                     }),
@@ -227453,7 +227504,7 @@ const useStyles$n = makeStyles()((e) => ({
                                               className: `${t.discIcon} ${t.himdDiscIcon}`,
                                             }),
                                             jsxRuntimeExports.jsx(Chip, {
-                                              label: "실험 기능",
+                                              label: wmdCustomText("실험 기능", "Experimental"),
                                               color: "secondary",
                                               size: "small",
                                             }),
@@ -227467,19 +227518,27 @@ const useStyles$n = makeStyles()((e) => ({
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "subtitle1",
                                           className: t.modeCardSubtitle,
-                                          children: "Hi-MD 미디어 모드",
+                                          children: wmdCustomText(
+                                            "Hi-MD 미디어 모드",
+                                            "Hi-MD media mode",
+                                          ),
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
-                                          children:
+                                          children: wmdCustomText(
                                             "Hi-MD 디스크와 Hi-MD 형식 미디어용입니다. 기기와 미디어에 따라 지원 범위가 다릅니다.",
+                                            "For Hi-MD discs and Hi-MD-formatted media. Support varies by recorder and media.",
+                                          ),
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           className: t.modeCardAction,
-                                          children: "Hi-MD로 연결 →",
+                                          children: wmdCustomText(
+                                            "Hi-MD로 연결 →",
+                                            "Connect with Hi-MD →",
+                                          ),
                                         }),
                                       ],
                                     }),
@@ -227490,15 +227549,19 @@ const useStyles$n = makeStyles()((e) => ({
                                 variant: "body2",
                                 align: "center",
                                 className: t.modeHint,
-                                children:
+                                children: wmdCustomText(
                                   "RH10에 일반 MD가 들어 있다면 NetMD를 선택하세요.",
+                                  "Choose NetMD when a standard MD is inserted in an RH10.",
+                                ),
                               }),
                               Rt &&
                                 jsxRuntimeExports.jsx(Alert, {
                                   severity: "info",
                                   className: t.notice,
-                                  children:
+                                  children: wmdCustomText(
                                     "범용 WinUSB를 한 번 설치하면 NetMD(0x0219)와 Hi-MD(0x021a)에 모두 적용됩니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.",
+                                    "Install the universal WinUSB driver once to cover both NetMD (0x0219) and Hi-MD (0x021a). It does not switch automatically to the USBSTOR driver used by File Explorer.",
+                                  ),
                                 }),
                               jsxRuntimeExports.jsxs(Box, {
                                 className: t.diagnosticBox,
@@ -227508,7 +227571,10 @@ const useStyles$n = makeStyles()((e) => ({
                                     variant: "outlined",
                                     onClick: Mt,
                                     disabled: P,
-                                    children: "RH10 연결 진단",
+                                    children: wmdCustomText(
+                                      "RH10 연결 진단",
+                                      "RH10 connection diagnostics",
+                                    ),
                                   }),
                                   Rt &&
                                     jsxRuntimeExports.jsx(Button$1, {
@@ -227523,7 +227589,10 @@ const useStyles$n = makeStyles()((e) => ({
                                           : Dt.call(jt);
                                       },
                                       disabled: P,
-                                      children: "Zadig 드라이버 안내",
+                                      children: wmdCustomText(
+                                        "Zadig 드라이버 안내",
+                                        "Zadig driver guide",
+                                      ),
                                     }),
                                   At &&
                                     jsxRuntimeExports.jsx(Typography, {
@@ -227551,7 +227620,10 @@ const useStyles$n = makeStyles()((e) => ({
                         style: { visibility: S ? "visible" : "hidden" },
                         children: jsxRuntimeExports.jsx(FormHelperText, {
                           children: A.includes("LIBUSB_TRANSFER_TIMED_OUT")
-                            ? "MiniDisc 기기 응답 시간이 초과되었습니다. 잠시 기다린 뒤 다시 연결해 주세요."
+                            ? wmdCustomText(
+                                "MiniDisc 기기 응답 시간이 초과되었습니다. 잠시 기다린 뒤 다시 연결해 주세요.",
+                                "The MiniDisc recorder did not respond in time. Wait a moment, then reconnect it.",
+                              )
                             : A,
                         }),
                       }),
@@ -245033,7 +245105,7 @@ img {
                   }),
                   jsxRuntimeExports.jsx("span", {
                     style: { flex: "1 1 auto", marginLeft: "4px" },
-                    children: "Web MiniDisc Pro",
+                    children: "Web MiniDisc Pro Custom",
                   }),
                   e === "MAIN"
                     ? jsxRuntimeExports.jsx(Button, {
@@ -245684,6 +245756,10 @@ ServiceRegistry.mediaRecorderService = new MediaRecorderService();
 ServiceRegistry.mediaSessionService = new BrowserMediaSessionService(store);
 Object.defineProperty(window, "wmdVersion", { value: "1.5.4", writable: !1 });
 const originalApplicationTitle = document.title;
+const wmdCustomUILanguage =
+  localStorage.getItem("wmdUiLanguage") ||
+  (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
+const wmdCustomText = (e, t) => (wmdCustomUILanguage === "ko" ? e : t);
 localStorage.setItem("version", window.wmdVersion);
 (function e() {
   var t;

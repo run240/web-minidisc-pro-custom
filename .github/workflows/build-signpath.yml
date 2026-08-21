@@ -1,7 +1,10 @@
-name: Build Windows and submit to SignPath
+name: Build Windows (optional SignPath signing)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -31,20 +34,18 @@ jobs:
             package-lock.json
             webminidisc/package-lock.json
 
-      - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Install application dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Build the WinUSB driver helper from source
-        shell: cmd
-        run: third_party\libwdi\build-wmdp-helper.cmd
+      - name: Run Hi-MD edit regression test
+        run: npm run test:himd-edit-batch
 
       - name: Build unpacked Windows application
         run: npm run pack:custom
+
+      - name: Verify and package Windows release
+        shell: pwsh
+        run: ./scripts/package-windows-release.ps1
 
       - name: Stage unsigned application
         shell: pwsh
@@ -59,8 +60,14 @@ jobs:
           name: web-minidisc-pro-windows-unsigned
           path: staging
 
+      - name: Upload release ZIP and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-minidisc-pro-windows-release
+          path: build/release/*
+
       - name: Submit signing request
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        if: ${{ github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
@@ -73,12 +80,11 @@ jobs:
           output-artifact-directory: '${{ github.workspace }}\signed'
 
       - name: Verify signed executables
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        if: ${{ github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
         shell: pwsh
         run: |
           $targets = @(
-            'signed\Web MiniDisc Pro.exe',
-            'signed\resources\app\extras\wmdp-driver-helper.exe'
+            'signed\Web MiniDisc Pro.exe'
           )
           foreach ($target in $targets) {
             $signature = Get-AuthenticodeSignature -LiteralPath $target
@@ -88,7 +94,7 @@ jobs:
           }
 
       - name: Upload signed application
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        if: ${{ github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: web-minidisc-pro-windows-signed

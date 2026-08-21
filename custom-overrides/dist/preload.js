@@ -41,6 +41,17 @@ exports.CHANGELOG = [
 (async () => {
     console.group('PRELOAD');
     console.log('====PRELOAD START====');
+    const uiLanguage = await electron_1.ipcRenderer.invoke('get_ui_language').catch(() => /^ko(?:-|$)/i.test(navigator.language) ? 'ko' : 'en');
+    const isKoreanUI = uiLanguage === 'ko';
+    const uiText = (korean, english) => isKoreanUI ? korean : english;
+    localStorage.setItem('wmdUiLanguage', uiLanguage);
+    const applyDocumentLanguage = () => {
+        if (document.documentElement)
+            document.documentElement.lang = uiLanguage;
+    };
+    applyDocumentLanguage();
+    if (!document.documentElement)
+        document.addEventListener('DOMContentLoaded', applyDocumentLanguage, { once: true });
     // The removed experimental LP2 encoder occupied a temporary service index.
     // Reset that stale preference before the renderer constructs SettingsDialog.
     try {
@@ -282,12 +293,12 @@ exports.CHANGELOG = [
             icon.textContent = '!';
             const title = document.createElement('h2');
             title.className = 'wmd-warning-title';
-            title.textContent = warning.title || '알림';
+            title.textContent = warning.title || uiText('알림', 'Notice');
             const body = document.createElement('div');
             body.className = 'wmd-warning-body';
             const message = document.createElement('p');
             message.className = 'wmd-warning-message';
-            message.textContent = warning.message || '작업을 완료하지 못했습니다.';
+            message.textContent = warning.message || uiText('작업을 완료하지 못했습니다.', 'The operation could not be completed.');
             const detail = document.createElement('p');
             detail.className = 'wmd-warning-detail';
             detail.textContent = warning.detail || '';
@@ -297,7 +308,7 @@ exports.CHANGELOG = [
             const closeButton = document.createElement('button');
             closeButton.type = 'button';
             closeButton.className = 'wmd-warning-close';
-            closeButton.textContent = '확인';
+            closeButton.textContent = uiText('확인', 'OK');
             const choices = Array.isArray(warning.choices) ? warning.choices : [];
             const close = (result = null) => {
                 document.removeEventListener('keydown', onKeyDown, true);
@@ -319,7 +330,7 @@ exports.CHANGELOG = [
                     const button = document.createElement('button');
                     button.type = 'button';
                     button.className = `wmd-warning-choice ${choice.kind || 'secondary'}`;
-                    button.textContent = String(choice.label || choice.value || '선택');
+                    button.textContent = String(choice.label || choice.value || uiText('선택', 'Select'));
                     button.addEventListener('click', () => close(choice.value ?? null), { once: true });
                     footer.append(button);
                 }
@@ -333,11 +344,11 @@ exports.CHANGELOG = [
                 const formatButton = document.createElement('button');
                 formatButton.type = 'button';
                 formatButton.className = 'wmd-warning-format';
-                formatButton.textContent = warning.formatLabel || (warning.formatTarget === 'himd' ? 'Hi-MD로 포맷' : '일반 MD로 포맷');
+                formatButton.textContent = warning.formatLabel || (warning.formatTarget === 'himd' ? uiText('Hi-MD로 포맷', 'Format as Hi-MD') : uiText('일반 MD로 포맷', 'Format as standard MD'));
                 formatButton.addEventListener('click', async () => {
                     formatButton.disabled = true;
                     closeButton.disabled = true;
-                    formatButton.textContent = '기기 확인 중…';
+                    formatButton.textContent = uiText('기기 확인 중…', 'Checking device…');
                     // The backend opens a second, destructive confirmation via
                     // showMiniDiscWarning. Close this informational warning first;
                     // otherwise the single-warning guard returns this same pending
@@ -352,7 +363,7 @@ exports.CHANGELOG = [
                         if (value?.stage === 'checking')
                             return;
                         if (!progress)
-                            progress = showMiniDiscFormatProgress('Hi-MD 준비 진행 중');
+                            progress = showMiniDiscFormatProgress(uiText('Hi-MD 준비 진행 중', 'Preparing Hi-MD'));
                         progress.update(value);
                     };
                     electron_1.ipcRenderer.on('himd-format-progress', onFormatProgress);
@@ -361,7 +372,7 @@ exports.CHANGELOG = [
                         if (result?.cancelled) {
                             return;
                         }
-                        const resultMessage = result?.message || (result?.ok ? 'Hi-MD 준비를 완료했습니다.' : 'Hi-MD 준비에 실패했습니다.');
+                        const resultMessage = result?.message || (result?.ok ? uiText('Hi-MD 준비를 완료했습니다.', 'Hi-MD preparation is complete.') : uiText('Hi-MD 준비에 실패했습니다.', 'Hi-MD preparation failed.'));
                         electron_1.ipcRenderer.removeListener('himd-format-progress', onFormatProgress);
                         progress?.close();
                         progress = null;
@@ -372,21 +383,21 @@ exports.CHANGELOG = [
                         await new Promise(resolve => setTimeout(resolve, 50));
                         await showMiniDiscWarning({
                             title: result?.ok
-                                ? result?.patchOnly ? 'RAM 패치 완료' : '포맷 완료'
-                                : result?.patchOnly ? 'RAM 패치 실패' : 'Hi-MD 준비 실패',
+                                ? result?.patchOnly ? uiText('RAM 패치 완료', 'RAM patch complete') : uiText('포맷 완료', 'Format complete')
+                                : result?.patchOnly ? uiText('RAM 패치 실패', 'RAM patch failed') : uiText('Hi-MD 준비 실패', 'Hi-MD preparation failed'),
                             message: resultMessage,
                             detail: result?.ok
                                 ? result?.patchOnly
-                                    ? '기기 전원을 유지한 채 기존 Hi-MD 미디어로 교체하고 USB 케이블만 다시 연결하세요.'
-                                    : '기기가 새 USB 모드로 다시 연결될 때까지 잠시 기다려 주세요.'
-                                : '디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.',
+                                    ? uiText('기기 전원을 유지한 채 기존 Hi-MD 미디어로 교체하고 USB 케이블만 다시 연결하세요.', 'Keep the recorder powered on, swap in the existing Hi-MD disc, and reconnect only the USB cable.')
+                                    : uiText('기기가 새 USB 모드로 다시 연결될 때까지 잠시 기다려 주세요.', 'Wait for the recorder to reconnect in its new USB mode.')
+                                : uiText('디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.', 'Check the disc and USB connection, then try again.'),
                         });
                         if (result?.ok && result.restartRequired) {
                             reload().catch(error => {
                                 void showMiniDiscWarning({
-                                    title: '프로그램 재시작 실패',
-                                    message: '프로그램을 자동으로 다시 시작하지 못했습니다.',
-                                    detail: `직접 종료한 뒤 다시 실행해 주세요.\n\n${error instanceof Error ? error.message : String(error)}`,
+                                    title: uiText('프로그램 재시작 실패', 'Could not restart the app'),
+                                    message: uiText('프로그램을 자동으로 다시 시작하지 못했습니다.', 'The app could not restart automatically.'),
+                                    detail: `${uiText('직접 종료한 뒤 다시 실행해 주세요.', 'Quit the app and start it again manually.')}\n\n${error instanceof Error ? error.message : String(error)}`,
                                 });
                             });
                         }
@@ -396,8 +407,8 @@ exports.CHANGELOG = [
                         close();
                         setTimeout(() => {
                             void showMiniDiscWarning({
-                                title: '포맷 오류',
-                                message: '포맷 중 오류가 발생했습니다.',
+                                title: uiText('포맷 오류', 'Format error'),
+                                message: uiText('포맷 중 오류가 발생했습니다.', 'An error occurred while formatting.'),
                                 detail: error instanceof Error ? error.message : String(error),
                             });
                         }, 0);
@@ -484,7 +495,7 @@ exports.CHANGELOG = [
                 fontWeight: '800',
             });
             const title = document.createElement('h2');
-            title.textContent = options.title || '확인';
+            title.textContent = options.title || uiText('확인', 'Confirm');
             Object.assign(title.style, {
                 margin: '0',
                 fontSize: '20px',
@@ -494,7 +505,7 @@ exports.CHANGELOG = [
             const body = document.createElement('div');
             Object.assign(body.style, { padding: '20px 22px 18px' });
             const message = document.createElement('p');
-            message.textContent = options.message || '계속하시겠습니까?';
+            message.textContent = options.message || uiText('계속하시겠습니까?', 'Do you want to continue?');
             Object.assign(message.style, {
                 margin: '0',
                 color: '#f5eff3',
@@ -521,7 +532,7 @@ exports.CHANGELOG = [
             });
             const cancelButton = document.createElement('button');
             cancelButton.type = 'button';
-            cancelButton.textContent = options.cancelLabel || '취소';
+            cancelButton.textContent = options.cancelLabel || uiText('취소', 'Cancel');
             Object.assign(cancelButton.style, {
                 minWidth: '82px',
                 padding: '10px 17px',
@@ -535,7 +546,7 @@ exports.CHANGELOG = [
             });
             const confirmButton = document.createElement('button');
             confirmButton.type = 'button';
-            confirmButton.textContent = options.confirmLabel || '확인';
+            confirmButton.textContent = options.confirmLabel || uiText('확인', 'Confirm');
             Object.assign(confirmButton.style, {
                 minWidth: '82px',
                 padding: '10px 17px',
@@ -687,13 +698,13 @@ exports.CHANGELOG = [
                         </svg>
                     </span>
                     <span class="wmd-device-picker-heading">
-                        <h2 class="wmd-device-picker-title" id="wmd-device-picker-title">MiniDisc 기기 선택</h2>
-                        <p class="wmd-device-picker-subtitle">${modeName}로 연결할 기기를 선택하세요.</p>
+                        <h2 class="wmd-device-picker-title" id="wmd-device-picker-title">${uiText('MiniDisc 기기 선택', 'Choose a MiniDisc recorder')}</h2>
+                        <p class="wmd-device-picker-subtitle">${uiText(`${modeName}로 연결할 기기를 선택하세요.`, `Choose the recorder to connect in ${modeName} mode.`)}</p>
                     </span>
                 </header>
                 <div class="wmd-device-picker-list"></div>
                 <footer class="wmd-device-picker-footer">
-                    <button type="button" class="wmd-device-picker-cancel">취소</button>
+                    <button type="button" class="wmd-device-picker-cancel">${uiText('취소', 'Cancel')}</button>
                 </footer>
             `;
             const list = panel.querySelector('.wmd-device-picker-list');
@@ -711,7 +722,7 @@ exports.CHANGELOG = [
                 const usbLocation = candidate.busNumber === undefined || candidate.deviceAddress === undefined
                     ? ''
                     : ` · USB ${candidate.busNumber}-${candidate.deviceAddress}`;
-                const driverLabel = candidate.driverStatus === 'winusb' ? 'WinUSB 준비됨' : '드라이버 확인 필요';
+                const driverLabel = candidate.driverStatus === 'winusb' ? uiText('WinUSB 준비됨', 'WinUSB ready') : uiText('드라이버 확인 필요', 'Driver check required');
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'wmd-device-picker-choice';
@@ -852,8 +863,8 @@ exports.CHANGELOG = [
                 <header class="wmd-driver-progress-head">
                     <span class="wmd-driver-progress-spinner" aria-hidden="true"></span>
                     <span>
-                        <h2 class="wmd-driver-progress-title" id="wmd-driver-progress-title">WinUSB 드라이버 설치 중</h2>
-                        <p class="wmd-driver-progress-subtitle" aria-live="polite">Windows 설치 도우미의 응답을 기다리고 있습니다.</p>
+                        <h2 class="wmd-driver-progress-title" id="wmd-driver-progress-title">${uiText('WinUSB 드라이버 설치 중', 'Installing the WinUSB driver')}</h2>
+                        <p class="wmd-driver-progress-subtitle" aria-live="polite">${uiText('Windows 설치 도우미의 응답을 기다리고 있습니다.', 'Waiting for the Windows installer.')}</p>
                     </span>
                 </header>
                 <div class="wmd-driver-progress-body">
@@ -863,8 +874,8 @@ exports.CHANGELOG = [
                     </div>
                     <p class="wmd-driver-progress-message"></p>
                     <div class="wmd-driver-progress-help">
-                        Windows 관리자 권한 확인 창(UAC)이 다른 창 뒤에 표시될 수 있습니다.
-                        확인 창이 보이면 <strong>예</strong>를 누르고, 설치가 끝날 때까지 USB 케이블을 분리하지 마세요.
+                        ${uiText('Windows 관리자 권한 확인 창(UAC)이 다른 창 뒤에 표시될 수 있습니다.', 'The Windows administrator permission prompt (UAC) may appear behind another window.')}
+                        ${uiText('확인 창이 보이면 <strong>예</strong>를 누르고, 설치가 끝날 때까지 USB 케이블을 분리하지 마세요.', 'When it appears, select <strong>Yes</strong> and do not disconnect USB until installation finishes.')}
                     </div>
                     <span class="wmd-driver-progress-time" aria-live="polite"></span>
                 </div>
@@ -877,7 +888,7 @@ exports.CHANGELOG = [
                 const minutes = Math.floor(seconds / 60);
                 const remainder = String(seconds % 60).padStart(2, '0');
                 panel.querySelector('.wmd-driver-progress-time').textContent =
-                    `경과 시간 ${minutes}:${remainder} · 최대 약 3분`;
+                    uiText(`경과 시간 ${minutes}:${remainder} · 최대 약 3분`, `Elapsed ${minutes}:${remainder} · up to about 3 minutes`);
             };
             renderElapsed();
             const timer = setInterval(renderElapsed, 1000);
@@ -891,19 +902,19 @@ exports.CHANGELOG = [
             };
         }
         const panel = activeDriverInstallProgress.panel;
-        panel.querySelector('.wmd-driver-progress-name').textContent = status.deviceName || 'MiniDisc 기기';
+        panel.querySelector('.wmd-driver-progress-name').textContent = status.deviceName || uiText('MiniDisc 기기', 'MiniDisc recorder');
         panel.querySelector('.wmd-driver-progress-mode').textContent = status.modeName || 'WinUSB';
         if (status.phase === 'verifying') {
-            panel.querySelector('.wmd-driver-progress-title').textContent = '설치 결과 확인 중';
-            panel.querySelector('.wmd-driver-progress-subtitle').textContent = 'Windows에 적용된 드라이버를 다시 확인하고 있습니다.';
+            panel.querySelector('.wmd-driver-progress-title').textContent = uiText('설치 결과 확인 중', 'Verifying installation');
+            panel.querySelector('.wmd-driver-progress-subtitle').textContent = uiText('Windows에 적용된 드라이버를 다시 확인하고 있습니다.', 'Checking the driver applied by Windows.');
             panel.querySelector('.wmd-driver-progress-message').textContent =
-                '기기가 잠시 사라졌다 다시 표시될 수 있습니다. 이 과정이 끝나면 결과를 자동으로 안내합니다.';
+                uiText('기기가 잠시 사라졌다 다시 표시될 수 있습니다. 이 과정이 끝나면 결과를 자동으로 안내합니다.', 'The recorder may disappear briefly and then reappear. The result will be shown automatically.');
         }
         else {
-            panel.querySelector('.wmd-driver-progress-title').textContent = 'WinUSB 드라이버 설치 중';
-            panel.querySelector('.wmd-driver-progress-subtitle').textContent = '관리자 권한 승인과 Windows 설치를 기다리고 있습니다.';
+            panel.querySelector('.wmd-driver-progress-title').textContent = uiText('WinUSB 드라이버 설치 중', 'Installing the WinUSB driver');
+            panel.querySelector('.wmd-driver-progress-subtitle').textContent = uiText('관리자 권한 승인과 Windows 설치를 기다리고 있습니다.', 'Waiting for administrator approval and Windows installation.');
             panel.querySelector('.wmd-driver-progress-message').textContent =
-                '설치 도우미는 화면 없이 실행되며 일반적으로 수십 초, 환경에 따라 최대 2분 정도 걸릴 수 있습니다.';
+                uiText('설치 도우미는 화면 없이 실행되며 일반적으로 수십 초, 환경에 따라 최대 2분 정도 걸릴 수 있습니다.', 'The installer runs without its own window and usually takes tens of seconds, or up to about two minutes on some systems.');
         }
     }
     electron_1.ipcRenderer.on('miniDiscDriverInstallStatus', (_, status) => {
@@ -1012,15 +1023,15 @@ exports.CHANGELOG = [
             panel.innerHTML = `
                 <div class="wmd-himd-confirm-head">
                     <div class="wmd-himd-confirm-icon" aria-hidden="true">!</div>
-                    <h2 class="wmd-himd-confirm-title" id="wmd-himd-confirm-title">Hi-MD 트랙 순서 변경</h2>
+                    <h2 class="wmd-himd-confirm-title" id="wmd-himd-confirm-title">${uiText('Hi-MD 트랙 순서 변경', 'Change Hi-MD track order')}</h2>
                 </div>
                 <div class="wmd-himd-confirm-body">
-                    <div class="wmd-himd-confirm-message">선택한 트랙의 위치를 변경합니다.</div>
-                    <div class="wmd-himd-confirm-warning">작업이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.</div>
+                    <div class="wmd-himd-confirm-message">${uiText('선택한 트랙의 위치를 변경합니다.', 'Move the selected track to a new position.')}</div>
+                    <div class="wmd-himd-confirm-warning">${uiText('작업이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.', 'Do not disconnect the recorder or USB cable until the operation finishes.')}</div>
                 </div>
                 <div class="wmd-himd-confirm-actions">
-                    <button type="button" class="wmd-himd-confirm-button cancel">취소</button>
-                    <button type="button" class="wmd-himd-confirm-button primary">순서 변경</button>
+                    <button type="button" class="wmd-himd-confirm-button cancel">${uiText('취소', 'Cancel')}</button>
+                    <button type="button" class="wmd-himd-confirm-button primary">${uiText('순서 변경', 'Change order')}</button>
                 </div>
             `;
             overlay.appendChild(panel);
@@ -1029,12 +1040,12 @@ exports.CHANGELOG = [
             if (options && options.mode === 'edit') {
                 const count = Math.max(1, Number(options.changeCount) || 1);
                 const deviceMode = options.deviceMode === 'NetMD' ? 'NetMD' : 'Hi-MD';
-                panel.querySelector('.wmd-himd-confirm-title').textContent = `${deviceMode} 편집 적용`;
+                panel.querySelector('.wmd-himd-confirm-title').textContent = uiText(`${deviceMode} 편집 적용`, `Apply ${deviceMode} edits`);
                 panel.querySelector('.wmd-himd-confirm-message').textContent =
-                    `${count}개의 편집 내용을 디스크에 한 번에 적용합니다.`;
+                    uiText(`${count}개의 편집 내용을 디스크에 한 번에 적용합니다.`, `Apply ${count} edits to the disc in one batch.`);
                 panel.querySelector('.wmd-himd-confirm-warning').textContent =
-                    '기록과 검증이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.';
-                confirmButton.textContent = '편집 적용';
+                    uiText('기록과 검증이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.', 'Do not disconnect the recorder or USB cable until writing and verification finish.');
+                confirmButton.textContent = uiText('편집 적용', 'Apply edits');
             }
             const finish = (result) => {
                 document.removeEventListener('keydown', handleKeyDown, true);
@@ -1181,27 +1192,27 @@ exports.CHANGELOG = [
             panel.setAttribute('aria-labelledby', 'wmd-himd-move-title');
             panel.innerHTML = `
                 <div class="wmd-himd-move-head">
-                    <h2 class="wmd-himd-move-title" id="wmd-himd-move-title">Hi-MD 트랙 이동</h2>
+                    <h2 class="wmd-himd-move-title" id="wmd-himd-move-title">${uiText('Hi-MD 트랙 이동', 'Move Hi-MD track')}</h2>
                     <div class="wmd-himd-move-track"></div>
                 </div>
                 <div class="wmd-himd-move-body">
-                    <label class="wmd-himd-move-label" for="wmd-himd-move-input">이동할 트랙 번호</label>
+                    <label class="wmd-himd-move-label" for="wmd-himd-move-input">${uiText('이동할 트랙 번호', 'Destination track number')}</label>
                     <div class="wmd-himd-move-input-row">
                         <input id="wmd-himd-move-input" class="wmd-himd-move-input" type="number" inputmode="numeric">
                         <span class="wmd-himd-move-total"></span>
                     </div>
                     <div class="wmd-himd-move-quick">
-                        <button type="button" data-move="first">맨 위</button>
-                        <button type="button" data-move="previous">한 칸 위</button>
-                        <button type="button" data-move="next">한 칸 아래</button>
-                        <button type="button" data-move="last">맨 아래</button>
+                        <button type="button" data-move="first">${uiText('맨 위', 'First')}</button>
+                        <button type="button" data-move="previous">${uiText('한 칸 위', 'Up one')}</button>
+                        <button type="button" data-move="next">${uiText('한 칸 아래', 'Down one')}</button>
+                        <button type="button" data-move="last">${uiText('맨 아래', 'Last')}</button>
                     </div>
-                    <div class="wmd-himd-move-warning">작업이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.</div>
+                    <div class="wmd-himd-move-warning">${uiText('작업이 끝날 때까지 장치와 USB 케이블을 분리하지 마세요.', 'Do not disconnect the recorder or USB cable until the operation finishes.')}</div>
                     <div class="wmd-himd-move-error" aria-live="polite"></div>
                 </div>
                 <div class="wmd-himd-move-actions">
-                    <button type="button" class="wmd-himd-move-button cancel">취소</button>
-                    <button type="button" class="wmd-himd-move-button primary">이동</button>
+                    <button type="button" class="wmd-himd-move-button cancel">${uiText('취소', 'Cancel')}</button>
+                    <button type="button" class="wmd-himd-move-button primary">${uiText('이동', 'Move')}</button>
                 </div>
             `;
             overlay.appendChild(panel);
@@ -1214,16 +1225,16 @@ exports.CHANGELOG = [
             input.min = '1';
             input.max = String(totalTracks);
             input.value = String(currentPosition);
-            trackLabel.textContent = `${currentPosition}. ${String(trackTitle || '제목 없음')}`;
+            trackLabel.textContent = `${currentPosition}. ${String(trackTitle || uiText('제목 없음', 'Untitled'))}`;
             totalLabel.textContent = `/ ${totalTracks}`;
             const readDestination = () => {
                 const value = Number.parseInt(input.value, 10);
                 if (!Number.isInteger(value) || value < 1 || value > totalTracks) {
-                    errorLabel.textContent = `1부터 ${totalTracks} 사이의 번호를 입력해 주세요.`;
+                    errorLabel.textContent = uiText(`1부터 ${totalTracks} 사이의 번호를 입력해 주세요.`, `Enter a number from 1 to ${totalTracks}.`);
                     moveButton.disabled = true;
                     return null;
                 }
-                errorLabel.textContent = value === currentPosition ? '현재 위치와 같은 번호입니다.' : '';
+                errorLabel.textContent = value === currentPosition ? uiText('현재 위치와 같은 번호입니다.', 'This is the current position.') : '';
                 moveButton.disabled = value === currentPosition;
                 return value - 1;
             };
@@ -1318,6 +1329,8 @@ exports.CHANGELOG = [
         'Enable SP Upload Speedup': 'SP 업로드 가속 사용',
         'Play TETRIS!': '테트리스 실행!',
         'Settings': '설정',
+        'Language': '언어',
+        'Automatic (System Language)': '자동(시스템 언어)',
         'Exit homebrew mode': '홈브루 모드 종료',
         'Support and FAQ': '지원 및 자주 묻는 질문',
         'Fork me on GitHub': 'GitHub에서 소스 보기',
@@ -1479,7 +1492,7 @@ exports.CHANGELOG = [
         'next': '다음 트랙',
     }));
     const translateKoreanUI = (root = document.body) => {
-        if (!root)
+        if (!root || !isKoreanUI)
             return;
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         let node;
@@ -1581,25 +1594,25 @@ exports.CHANGELOG = [
         }
         for (const subtitle of document.querySelectorAll('h2')) {
             const text = (subtitle.textContent || '').replace(/\s+/g, ' ').trim();
-            if (/^(?:Sony )?MiniDisc 데스크톱 매니저$/.test(text)) {
-                subtitle.textContent = 'MiniDisc 데스크톱 매니저';
+            if (/^(?:(?:Sony )?MiniDisc 데스크톱 매니저|MiniDisc desktop manager)$/i.test(text)) {
+                subtitle.textContent = uiText('MiniDisc 데스크톱 매니저', 'MiniDisc desktop manager');
                 subtitle.dataset.wmdAppSubtitle = 'true';
             }
-            if (text === '사용할 디스크 모드를 선택하세요') {
+            if (text === '사용할 디스크 모드를 선택하세요' || /^(?:choose|select) (?:the |a )?disc mode/i.test(text)) {
                 subtitle.dataset.wmdWelcomePrompt = 'true';
             }
         }
         const connectionTargets = Array.from(document.querySelectorAll('button, [role="button"]'));
         for (const target of connectionTargets) {
             const text = (target.textContent || '').replace(/\s+/g, ' ').trim();
-            if (!/^(?:NetMD|Hi-MD).*(?:연결|Connect)|^(?:일반 MD|실험 기능).*(?:NetMD|Hi-MD)/i.test(text))
+            if (!/^(?:NetMD|Hi-MD).*(?:연결|Connect)|^(?:일반 MD|실험 기능|Standard MD|Experimental).*(?:NetMD|Hi-MD)/i.test(text))
                 continue;
-            if (!text.includes('일반 MD 모드') && !text.includes('Hi-MD 미디어 모드'))
+            if (!/(?:일반 MD 모드|Standard MD mode|Hi-MD 미디어 모드|Hi-MD media mode)/i.test(text))
                 continue;
-            const mode = text.includes('Hi-MD 미디어 모드') ? 'himd' : 'netmd';
+            const mode = /(?:Hi-MD 미디어 모드|Hi-MD media mode)/i.test(text) ? 'himd' : 'netmd';
             target.dataset.wmdModeCard = mode;
             target.parentElement?.setAttribute('data-wmd-mode-grid', 'true');
-            const action = Array.from(target.querySelectorAll('p, span')).find(element => /(?:NetMD|Hi-MD)로 연결/.test((element.textContent || '').trim()));
+            const action = Array.from(target.querySelectorAll('p, span')).find(element => /(?:(?:NetMD|Hi-MD)로 연결|Connect with (?:NetMD|Hi-MD))/i.test((element.textContent || '').trim()));
             if (action)
                 action.dataset.wmdModeAction = 'true';
             const discIcon = Array.from(target.querySelectorAll('div')).find(element => {
@@ -1612,7 +1625,9 @@ exports.CHANGELOG = [
             if (discIcon && !discIcon.querySelector('[data-wmd-media-image]')) {
                 const image = document.createElement('img');
                 image.dataset.wmdMediaImage = mode;
-                image.alt = mode === 'himd' ? '1GB Hi-MD 미디어' : '일반 MiniDisc 미디어';
+                image.alt = mode === 'himd'
+                    ? uiText('1GB Hi-MD 미디어', '1GB Hi-MD media')
+                    : uiText('일반 MiniDisc 미디어', 'Standard MiniDisc media');
                 image.src = mode === 'himd'
                     ? 'sandbox://assets/himd-media-wikimedia.jpg'
                     : 'sandbox://assets/netmd-media-final.png';
@@ -1627,7 +1642,7 @@ exports.CHANGELOG = [
         }
         for (const element of document.querySelectorAll('div')) {
             const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
-            if (/^MiniDisc 연결 진단/.test(text) && element.querySelector('button')) {
+            if (/^(?:MiniDisc 연결 진단|MiniDisc connection diagnostics)/i.test(text) && element.querySelector('button')) {
                 element.dataset.wmdDiagnostics = 'true';
             }
         }
@@ -1768,7 +1783,7 @@ exports.CHANGELOG = [
                 if (content && !content.querySelector('[data-wmd-custom-build-label]')) {
                     const label = document.createElement('div');
                     label.dataset.wmdCustomBuildLabel = 'true';
-                    label.textContent = 'Windows Custom Build · Web MiniDisc Pro 1.5.4 기반';
+                    label.textContent = uiText('Custom 빌드 · Web MiniDisc Pro 1.5.4 기반', 'Custom build · Based on Web MiniDisc Pro 1.5.4');
                     content.appendChild(label);
                 }
             }
@@ -1838,7 +1853,7 @@ exports.CHANGELOG = [
         const experimentInput = document.createElement('input');
         experimentInput.type = 'checkbox';
         experimentInput.checked = rh1KoreanTitleExperimentEnabled;
-        experimentInput.setAttribute('aria-label', '한글 제목 유지');
+        experimentInput.setAttribute('aria-label', uiText('한글 제목 유지', 'Preserve Korean titles'));
         Object.assign(experimentInput.style, {
             width: '18px',
             height: '18px',
@@ -1847,9 +1862,9 @@ exports.CHANGELOG = [
             cursor: 'pointer',
         });
         const experimentLabel = document.createElement('span');
-        experimentLabel.textContent = '한글 제목 유지';
+        experimentLabel.textContent = uiText('한글 제목 유지', 'Preserve Korean titles');
         const badge = document.createElement('span');
-        badge.textContent = '비공식';
+        badge.textContent = uiText('비공식', 'Unofficial');
         Object.assign(badge.style, {
             marginLeft: 'auto',
             padding: '2px 7px',
@@ -1861,7 +1876,7 @@ exports.CHANGELOG = [
         });
         experimentRow.append(experimentInput, experimentLabel, badge);
         const description = document.createElement('div');
-        description.textContent = 'Sony MZ-RH1 Hi-MD 전용입니다. 켜면 여러 곡 전송과 전송 후 수정에서 제목·앨범·아티스트의 한글을 그대로 보존합니다.';
+        description.textContent = uiText('Sony MZ-RH1 Hi-MD 전용입니다. 켜면 여러 곡 전송과 전송 후 수정에서 제목·앨범·아티스트의 한글을 그대로 보존합니다.', 'For Sony MZ-RH1 in Hi-MD mode only. When enabled, Korean title, album, and artist text is preserved during multi-track transfers and later edits.');
         Object.assign(description.style, {
             margin: '7px 0 8px 28px',
             color: 'rgba(255, 255, 255, 0.70)',
@@ -1880,7 +1895,7 @@ exports.CHANGELOG = [
         const filenameInput = document.createElement('input');
         filenameInput.type = 'checkbox';
         filenameInput.checked = rh1KoreanTitleUseFilename;
-        filenameInput.setAttribute('aria-label', '한글 파일명을 제목으로 사용');
+        filenameInput.setAttribute('aria-label', uiText('한글 파일명을 제목으로 사용', 'Use the Korean filename as the title'));
         Object.assign(filenameInput.style, {
             width: '16px',
             height: '16px',
@@ -1889,10 +1904,10 @@ exports.CHANGELOG = [
             cursor: 'pointer',
         });
         const filenameLabel = document.createElement('span');
-        filenameLabel.textContent = '한글 파일명을 제목으로 사용 (영문 내부 태그 대신)';
+        filenameLabel.textContent = uiText('한글 파일명을 제목으로 사용 (영문 내부 태그 대신)', 'Use the Korean filename as the title (instead of English embedded tags)');
         filenameRow.append(filenameInput, filenameLabel);
         const metadataHint = document.createElement('div');
-        metadataHint.textContent = '참고: 현재 표의 영어 제목은 파일명이 아니라 음원 내부의 영문 태그입니다.';
+        metadataHint.textContent = uiText('참고: 현재 표의 영어 제목은 파일명이 아니라 음원 내부의 영문 태그입니다.', 'Note: English titles shown in the table come from embedded audio tags, not filenames.');
         Object.assign(metadataHint.style, {
             margin: '6px 0 0 53px',
             color: 'rgba(255, 255, 255, 0.58)',
@@ -1913,18 +1928,18 @@ exports.CHANGELOG = [
             filenameRow.style.opacity = filenameInput.disabled ? '0.48' : '1';
             filenameRow.style.cursor = filenameInput.disabled ? 'default' : 'pointer';
             status.textContent = rh1KoreanTitleExperimentEnabled
-                ? '한글 유지 사용 중 · 여러 곡 전체와 전송 후 제목 수정에 같은 설정이 적용됩니다.'
-                : '기본값: 한글 제목을 로마자로 변환합니다.';
+                ? uiText('한글 유지 사용 중 · 여러 곡 전체와 전송 후 제목 수정에 같은 설정이 적용됩니다.', 'Korean preservation is active for all queued tracks and later title edits.')
+                : uiText('기본값: 한글 제목을 로마자로 변환합니다.', 'Default: Korean titles are romanized.');
         };
         experimentInput.addEventListener('change', async () => {
             const requestedState = experimentInput.checked;
             experimentInput.disabled = true;
             filenameInput.disabled = true;
-            status.textContent = requestedState ? 'RH1 연결을 확인하는 중…' : '기본 제목 모드로 되돌리는 중…';
+            status.textContent = requestedState ? uiText('RH1 연결을 확인하는 중…', 'Checking the RH1 connection…') : uiText('기본 제목 모드로 되돌리는 중…', 'Returning to the default title mode…');
             try {
                 const result = await setRH1KoreanTitleExperiment(requestedState);
                 if (!result?.ok) {
-                    throw new Error(result?.message || '한글 제목 실험 설정을 변경하지 못했습니다.');
+                    throw new Error(result?.message || uiText('한글 제목 실험 설정을 변경하지 못했습니다.', 'Could not change the Korean title experiment setting.'));
                 }
                 rh1KoreanTitleExperimentEnabled = Boolean(result.enabled);
                 notifyRH1KoreanTitleModeChanged();
@@ -2033,7 +2048,7 @@ exports.CHANGELOG = [
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.checked = rh1KoreanTitleExperimentEnabled;
-        input.setAttribute('aria-label', '수정한 한글 제목 유지');
+        input.setAttribute('aria-label', uiText('수정한 한글 제목 유지', 'Preserve edited Korean titles'));
         Object.assign(input.style, {
             width: '18px',
             height: '18px',
@@ -2042,14 +2057,14 @@ exports.CHANGELOG = [
             cursor: 'pointer',
         });
         const copy = document.createElement('span');
-        copy.innerHTML = '<strong style="display:block;margin-bottom:3px">한글 제목 유지</strong><span style="display:block;color:rgba(255,255,255,.66);font-size:12px;line-height:1.45">켜면 제목·앨범·아티스트를 한글 그대로 저장합니다. 끄면 수정한 값 전체를 로마자로 변환합니다.</span>';
+        copy.innerHTML = uiText('<strong style="display:block;margin-bottom:3px">한글 제목 유지</strong><span style="display:block;color:rgba(255,255,255,.66);font-size:12px;line-height:1.45">켜면 제목·앨범·아티스트를 한글 그대로 저장합니다. 끄면 수정한 값 전체를 로마자로 변환합니다.</span>', '<strong style="display:block;margin-bottom:3px">Preserve Korean titles</strong><span style="display:block;color:rgba(255,255,255,.66);font-size:12px;line-height:1.45">When enabled, title, album, and artist text is stored in Korean. When disabled, edited values are romanized.</span>');
         input.addEventListener('change', async () => {
             const requestedState = input.checked;
             input.disabled = true;
             try {
                 const result = await setRH1KoreanTitleExperiment(requestedState);
                 if (!result?.ok)
-                    throw new Error(result?.message || '한글 제목 유지 설정을 변경하지 못했습니다.');
+                    throw new Error(result?.message || uiText('한글 제목 유지 설정을 변경하지 못했습니다.', 'Could not change the Korean title preservation setting.'));
                 rh1KoreanTitleExperimentEnabled = Boolean(result.enabled);
                 notifyRH1KoreanTitleModeChanged();
             }
@@ -2078,7 +2093,7 @@ exports.CHANGELOG = [
             notice = document.createElement('div');
             notice.dataset.netmdKoreanRenameNotice = 'true';
             notice.dataset.noKoreanTranslation = 'true';
-            notice.textContent = 'NetMD 제목 영역은 한글을 직접 저장할 수 없어 적용 시 로마자로 변환됩니다. 한글 제목을 그대로 저장하려면 RH1의 Hi-MD 모드를 사용하세요.';
+            notice.textContent = uiText('NetMD 제목 영역은 한글을 직접 저장할 수 없어 적용 시 로마자로 변환됩니다. 한글 제목을 그대로 저장하려면 RH1의 Hi-MD 모드를 사용하세요.', 'NetMD title fields cannot store Korean directly, so Korean text is romanized when applied. Use the RH1 in Hi-MD mode to preserve Korean titles.');
             Object.assign(notice.style, {
                 display: 'none',
                 margin: '9px 0 2px',
@@ -2240,7 +2255,7 @@ exports.CHANGELOG = [
             referenceButton.parentElement.insertBefore(button, referenceButton);
         }
     };
-    const showMiniDiscFormatProgress = (progressTitle = 'Hi-MD 포맷 진행 중') => {
+    const showMiniDiscFormatProgress = (progressTitle = uiText('Hi-MD 포맷 진행 중', 'Formatting Hi-MD')) => {
         document.querySelector('[data-himd-format-progress]')?.remove();
         const overlay = document.createElement('div');
         overlay.dataset.himdFormatProgress = 'true';
@@ -2284,10 +2299,10 @@ exports.CHANGELOG = [
             animation: 'himdFormatSpin 1s linear infinite',
         });
         const message = document.createElement('p');
-        message.textContent = '연결된 기기와 일반 MD 상태를 확인하고 있습니다.';
+        message.textContent = uiText('연결된 기기와 일반 MD 상태를 확인하고 있습니다.', 'Checking the connected recorder and standard MiniDisc.');
         Object.assign(message.style, { margin: '0', fontSize: '18px', lineHeight: '1.55' });
         const warning = document.createElement('p');
-        warning.textContent = '완료 안내가 나타날 때까지 앱, USB 케이블 및 기기 전원을 건드리지 마세요.';
+        warning.textContent = uiText('완료 안내가 나타날 때까지 앱, USB 케이블 및 기기 전원을 건드리지 마세요.', 'Do not close the app, disconnect USB, or power off the recorder until completion is confirmed.');
         Object.assign(warning.style, {
             margin: '22px 0 0',
             padding: '14px 16px',
@@ -2319,8 +2334,9 @@ exports.CHANGELOG = [
         for (const dialog of document.querySelectorAll('[role="dialog"]')) {
             const text = dialog.textContent || '';
             if ((!text.includes('Hi-MD 모드로 연결할 수 없습니다') &&
-                !text.includes('Hi-MD USB 인터페이스를 기다리고 있습니다')) ||
-                (!text.includes('일반 MD') && !text.includes('NetMD'))) {
+                !text.includes('Hi-MD USB 인터페이스를 기다리고 있습니다') &&
+                !/cannot connect.*Hi-?MD|waiting for.*Hi-?MD USB interface/i.test(text)) ||
+                (!text.includes('일반 MD') && !text.includes('NetMD') && !/standard MiniDisc/i.test(text))) {
                 continue;
             }
             const alertMessage = dialog.querySelector('.MuiAlert-message');
@@ -2329,7 +2345,7 @@ exports.CHANGELOG = [
                 let node = walker.nextNode();
                 while (node) {
                     if ((node.nodeValue || '').includes('현재 RH10은 일반 MD')) {
-                        node.nodeValue = '연결된 기기는 일반 MD(NetMD) 모드입니다. Hi-MD 또는 1GB Hi-MD 전용 미디어가 들어 있다면 포맷하지 말고 USB를 다시 연결한 뒤 다시 시도하세요. 아래 포맷 기능은 지워도 되는 일반 MD를 Hi-MD 형식으로 새로 초기화하려는 경우에만 사용합니다.';
+                        node.nodeValue = uiText('연결된 기기는 일반 MD(NetMD) 모드입니다. Hi-MD 또는 1GB Hi-MD 전용 미디어가 들어 있다면 포맷하지 말고 USB를 다시 연결한 뒤 다시 시도하세요. 아래 포맷 기능은 지워도 되는 일반 MD를 Hi-MD 형식으로 새로 초기화하려는 경우에만 사용합니다.', 'The recorder is in standard MiniDisc (NetMD) mode. If a Hi-MD or 1GB Hi-MD disc is inserted, do not format it; reconnect USB and try again. Use the format action below only to erase a standard MiniDisc and initialize it as Hi-MD.');
                         break;
                     }
                     node = walker.nextNode();
@@ -2338,7 +2354,7 @@ exports.CHANGELOG = [
             if (dialog.querySelector('[data-himd-format-button]'))
                 continue;
             const existingButtons = Array.from(dialog.querySelectorAll('button'));
-            const referenceButton = existingButtons.find(button => button.textContent?.includes('NetMD로 연결')) ||
+            const referenceButton = existingButtons.find(button => button.textContent?.includes('NetMD로 연결') || /connect.*NetMD/i.test(button.textContent || '')) ||
                 existingButtons[existingButtons.length - 1];
             if (!referenceButton?.parentElement) {
                 continue;
@@ -2347,13 +2363,13 @@ exports.CHANGELOG = [
             button.type = 'button';
             button.dataset.himdFormatButton = 'true';
             button.className = referenceButton.className;
-            button.textContent = '일반 MD를 지우고 Hi-MD로 포맷';
+            button.textContent = uiText('일반 MD를 지우고 Hi-MD로 포맷', 'Erase standard MD and format as Hi-MD');
             button.style.backgroundColor = '#c62828';
             button.style.color = '#fff';
             button.style.marginRight = '8px';
             button.addEventListener('click', async () => {
                 button.disabled = true;
-                button.textContent = '기기 확인 중…';
+                button.textContent = uiText('기기 확인 중…', 'Checking device…');
                 const progress = showMiniDiscFormatProgress();
                 const onProgress = (_event, value) => progress.update(value);
                 electron_1.ipcRenderer.on('himd-format-progress', onProgress);
@@ -2361,15 +2377,15 @@ exports.CHANGELOG = [
                     const result = await formatStandardMDToHiMD();
                     if (result?.cancelled) {
                         button.disabled = false;
-                        button.textContent = '일반 MD를 지우고 Hi-MD로 포맷';
+                        button.textContent = uiText('일반 MD를 지우고 Hi-MD로 포맷', 'Erase standard MD and format as Hi-MD');
                         return;
                     }
                     await showMiniDiscWarning({
-                        title: result?.ok ? 'Hi-MD 포맷 완료' : 'Hi-MD 포맷 실패',
-                        message: result?.message || (result?.ok ? 'Hi-MD 포맷 명령을 완료했습니다.' : 'Hi-MD 포맷에 실패했습니다.'),
+                        title: result?.ok ? uiText('Hi-MD 포맷 완료', 'Hi-MD format complete') : uiText('Hi-MD 포맷 실패', 'Hi-MD format failed'),
+                        message: result?.message || (result?.ok ? uiText('Hi-MD 포맷 명령을 완료했습니다.', 'The Hi-MD format command completed.') : uiText('Hi-MD 포맷에 실패했습니다.', 'Hi-MD formatting failed.')),
                         detail: result?.ok
-                            ? '새 Hi-MD 파일시스템으로 다시 연결합니다.'
-                            : '디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.',
+                            ? uiText('새 Hi-MD 파일시스템으로 다시 연결합니다.', 'Reconnecting with the new Hi-MD filesystem.')
+                            : uiText('디스크와 USB 연결 상태를 확인한 뒤 다시 시도해 주세요.', 'Check the disc and USB connection, then try again.'),
                     });
                     if (result?.ok) {
                         if (process.platform === 'darwin') {
@@ -2381,17 +2397,17 @@ exports.CHANGELOG = [
                     }
                     else {
                         button.disabled = false;
-                        button.textContent = '일반 MD를 지우고 Hi-MD로 포맷';
+                        button.textContent = uiText('일반 MD를 지우고 Hi-MD로 포맷', 'Erase standard MD and format as Hi-MD');
                     }
                 }
                 catch (error) {
                     await showMiniDiscWarning({
-                        title: 'Hi-MD 포맷 오류',
-                        message: 'Hi-MD 포맷 중 오류가 발생했습니다.',
+                        title: uiText('Hi-MD 포맷 오류', 'Hi-MD format error'),
+                        message: uiText('Hi-MD 포맷 중 오류가 발생했습니다.', 'An error occurred while formatting Hi-MD.'),
                         detail: error instanceof Error ? error.message : String(error),
                     });
                     button.disabled = false;
-                    button.textContent = '일반 MD를 지우고 Hi-MD로 포맷';
+                    button.textContent = uiText('일반 MD를 지우고 Hi-MD로 포맷', 'Erase standard MD and format as Hi-MD');
                 }
                 finally {
                     electron_1.ipcRenderer.removeListener('himd-format-progress', onProgress);
@@ -2695,7 +2711,7 @@ exports.CHANGELOG = [
             const text = item.querySelector('.MuiListItemText-primary') ||
                 Array.from(item.querySelectorAll('span')).find(span => /GitHub|Fork me/i.test(normalize(span.textContent)));
             if (text)
-                text.textContent = '원본 프로젝트 · GitHub';
+                text.textContent = uiText('원본 프로젝트 · GitHub', 'Upstream project · GitHub');
         }
     };
     let requestedMiniDiscMode = null;
@@ -3574,7 +3590,10 @@ exports.CHANGELOG = [
     }
     console.log('====PRELOAD COMPLETE====');
     console.groupEnd();
-})();
+})().catch(error => {
+    console.error('PRELOAD INITIALIZATION FAILED', error);
+    void electron_1.ipcRenderer.invoke('appendDiagnosticLog', 'preload initialization failed', serializeDiagnosticValue(error)).catch(() => { });
+});
 async function loadSettings() {
     const settings = await electron_1.ipcRenderer.invoke("fetch_settings_list");
     return settings

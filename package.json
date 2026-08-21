@@ -3,10 +3,10 @@
   "productName": "Web MiniDisc Pro",
   "version": "0.5.2-1.5.4",
   "description": "Electron version of WebMinidisc Pro",
-  "homepage": "https://github.com/run240/web-minidisc-pro-windows-custom",
+  "homepage": "https://github.com/run240/web-minidisc-pro-custom",
   "repository": {
     "type": "git",
-    "url": "https://github.com/run240/web-minidisc-pro-windows-custom.git"
+    "url": "https://github.com/run240/web-minidisc-pro-custom.git"
   },
   "main": "dist/main.js",
   "scripts": {
@@ -14,6 +14,7 @@
     "build:custom": "node scripts/build-custom.mjs",
     "test:himd-edit-batch": "npm run build:custom && node scripts/test-himd-edit-batch.cjs",
     "pack:custom": "npm run build:custom && electron-builder --dir --win --x64",
+    "release:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-release.ps1",
     "start": "npm run build && NODE_ENV=development electron ./dist/main.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder -wl --x64 && electron-builder -w --ia32",
@@ -73,7 +74,7 @@
     "@types/node": "^18.11.9",
     "@types/node-fetch": "^2.6.2",
     "electron": "^31.2.1",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.15.3",
     "prettier": "^2.7.1",
     "typescript": "^5.9.3"
   },

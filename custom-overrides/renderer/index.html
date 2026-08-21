@@ -11,8 +11,17 @@
       content="Copy audio to your NetMD MiniDisc device using only a web browser. Replace SonicStage, improve audio quality, and unlock new features."
     />
     <link rel="apple-touch-icon" href="sandbox://MiniDisc192.png" />
-    <title>Web MiniDisc Pro - 1.5.4 Windows Custom</title>
-    <script type="module" crossorigin src="sandbox://assets/index-DdAyCQFX.js"></script>
+    <title>Web MiniDisc Pro Custom - 1.5.4</title>
+    <script type="module">
+      const nativeReadyDeadline = Date.now() + 15000;
+      while (!window.native?.himdFullInterface) {
+        if (Date.now() >= nativeReadyDeadline) {
+          throw new Error('The MiniDisc desktop interface did not initialize in time.');
+        }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      await import('sandbox://assets/index-DdAyCQFX.js');
+    </script>
     <link rel="stylesheet" crossorigin href="sandbox://assets/index-c_se7tBa.css">
     <link rel="stylesheet" crossorigin href="sandbox://assets/wmd-modern-theme.css">
   <link rel="manifest" href="sandbox://manifest.json"><script id="vite-plugin-pwa:register-sw" src="sandbox://registerSW.js"></script></head>

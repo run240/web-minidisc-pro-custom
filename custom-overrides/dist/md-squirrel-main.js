@@ -11,7 +11,7 @@ const AUDIO_EXTENSIONS = new Set([
     ".mp3", ".flac", ".m4a", ".mp4", ".aac", ".ogg", ".opus", ".wav", ".wma",
     ".aif", ".aiff", ".ape", ".wv", ".tta", ".tak", ".mka", ".dsf", ".dff",
 ]);
-const MUSICBRAINZ_USER_AGENT = "MD-Squirrel/0.1.0 (https://github.com/run240/web-minidisc-pro-windows-custom)";
+const MUSICBRAINZ_USER_AGENT = "MD-Squirrel/0.1.0 (https://github.com/run240/web-minidisc-pro-custom)";
 let lastMusicBrainzRequestAt = 0;
 let mdLabelMakerWindow = null;
 let preserveLabelDraftOnClose = false;

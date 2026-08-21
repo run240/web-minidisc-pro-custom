@@ -1,6 +1,8 @@
 "use strict";
 
 const { ipcRenderer } = require("electron");
+const isKoreanUI = (localStorage.getItem("wmdUiLanguage") || (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en")) === "ko";
+const uiText = (korean, english) => isKoreanUI ? korean : english;
 
 const state = {
     folder: "",
@@ -38,7 +40,7 @@ function installStyles() {
     style.id = "md-squirrel-styles";
     style.textContent = `
       #md-squirrel-launcher {
-        position: fixed; z-index: 2147482000; width: 82px; height: 82px; padding: 0;
+        position: fixed; z-index: 1200; width: 82px; height: 82px; padding: 0;
         display: block; border: 0; border-radius: 50%; overflow: visible; color: #f4d9e7;
         background: transparent; cursor: pointer; transition: transform .16s ease;
       }
@@ -88,7 +90,7 @@ function installStyles() {
         opacity: 1;
       }
       #md-label-launcher {
-        position: fixed; z-index: 2147482000; width: 82px; height: 82px; padding: 0;
+        position: fixed; z-index: 1200; width: 82px; height: 82px; padding: 0;
         display: block; border: 0; border-radius: 50%; overflow: visible; color: #f4d9e7;
         background: transparent; cursor: pointer; transition: transform .16s ease;
       }
@@ -300,9 +302,15 @@ function showToast(message) {
     setTimeout(() => toast.remove(), 4500);
 }
 
+function isWelcomePromptText(value) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    return text === "사용할 디스크 모드를 선택하세요" ||
+        /^(?:choose|select) (?:the |a )?disc mode(?: you want to use)?$/i.test(text);
+}
+
 function findWelcomePanel() {
     const heading = [...document.querySelectorAll("h1, h2, h3, p, div, span")]
-        .find(element => (element.textContent || "").trim() === "사용할 디스크 모드를 선택하세요");
+        .find(element => isWelcomePromptText(element.textContent));
     if (!heading)
         return null;
     let candidate = heading.parentElement;
@@ -318,12 +326,12 @@ function findWelcomePanel() {
 function positionLauncher(launcher, panel) {
     const rect = panel.getBoundingClientRect();
     const heading = [...document.querySelectorAll("h1, h2, h3, p, div, span")]
-        .find(element => (element.textContent || "").trim() === "사용할 디스크 모드를 선택하세요");
+        .find(element => isWelcomePromptText(element.textContent));
     const hiMDCard = [...document.querySelectorAll("a, button, [role='button']")]
         .filter(element => {
         const text = (element.textContent || "").replace(/\s+/g, " ").trim();
         const bounds = element.getBoundingClientRect();
-        return text.includes("Hi-MD로 연결") && bounds.width > 220 && bounds.height > 180;
+        return /(?:Hi-MD로 연결|Connect with Hi-MD)/i.test(text) && bounds.width > 220 && bounds.height > 180;
     })
         .sort((a, b) => {
         const aRect = a.getBoundingClientRect();
@@ -344,12 +352,12 @@ function positionLauncher(launcher, panel) {
 function positionLabelLauncher(launcher, panel) {
     const rect = panel.getBoundingClientRect();
     const heading = [...document.querySelectorAll("h1, h2, h3, p, div, span")]
-        .find(element => (element.textContent || "").trim() === "사용할 디스크 모드를 선택하세요");
+        .find(element => isWelcomePromptText(element.textContent));
     const netMDCard = [...document.querySelectorAll("a, button, [role='button']")]
         .filter(element => {
         const text = (element.textContent || "").replace(/\s+/g, " ").trim();
         const bounds = element.getBoundingClientRect();
-        return text.includes("NetMD로 연결") && bounds.width > 220 && bounds.height > 180;
+        return /(?:NetMD로 연결|Connect with NetMD)/i.test(text) && bounds.width > 220 && bounds.height > 180;
     })
         .sort((a, b) => {
         const aRect = a.getBoundingClientRect();
@@ -371,13 +379,13 @@ function createLauncher() {
     const launcher = createElement("button");
     launcher.id = "md-squirrel-launcher";
     launcher.type = "button";
-    launcher.setAttribute("aria-label", "MD Squirrel 열기");
+    launcher.setAttribute("aria-label", uiText("MD Squirrel 열기", "Open MD Squirrel"));
     const label = createElement("span", "mds-launcher-label", "MD Squirrel");
     const tooltip = createElement("span", "mds-launcher-tooltip");
     tooltip.append(
-        createElement("span", "", "한글 음원의 영문 제목을 찾아"),
+        createElement("span", "", uiText("한글 음원의 영문 제목을 찾아", "Find English titles for local audio")),
         document.createElement("br"),
-        createElement("span", "", "MiniDisc용 복사본을 만들어 드립니다!"),
+        createElement("span", "", uiText("MiniDisc용 복사본을 만들어 드립니다!", "and create MiniDisc-ready copies!")),
     );
     const iconFrame = createElement("span", "mds-icon-frame");
     const image = document.createElement("img");
@@ -400,13 +408,13 @@ function createLabelLauncher() {
     const launcher = createElement("button");
     launcher.id = "md-label-launcher";
     launcher.type = "button";
-    launcher.setAttribute("aria-label", "MiniDisc 라벨 만들기 열기");
-    const label = createElement("span", "mdl-launcher-label", "MD 라벨");
+    launcher.setAttribute("aria-label", uiText("MiniDisc 라벨 만들기 열기", "Open MiniDisc Label Maker"));
+    const label = createElement("span", "mdl-launcher-label", uiText("MD 라벨", "MD Label"));
     const tooltip = createElement("span", "mdl-launcher-tooltip");
     tooltip.append(
-        createElement("span", "", "MiniDisc 라벨과 케이스를 디자인하고"),
+        createElement("span", "", uiText("MiniDisc 라벨과 케이스를 디자인하고", "Design MiniDisc labels and cases")),
         document.createElement("br"),
-        createElement("span", "", "PDF·PNG·SVG 또는 작업 파일로 저장합니다."),
+        createElement("span", "", uiText("PDF·PNG·SVG 또는 작업 파일로 저장합니다.", "and save as PDF, PNG, SVG, or project files.")),
     );
     const iconFrame = createElement("span", "mdl-icon-frame");
     const image = document.createElement("img");
@@ -428,7 +436,7 @@ async function openLabelMakerFrom(button) {
         await ipcRenderer.invoke("mdLabelMakerOpen");
     }
     catch (error) {
-        showToast(`라벨 제작기를 열지 못했습니다: ${error?.message || error}`);
+        showToast(`${uiText('라벨 제작기를 열지 못했습니다', 'Could not open the label maker')}: ${error?.message || error}`);
     }
     finally {
         button.disabled = false;
@@ -437,7 +445,7 @@ async function openLabelMakerFrom(button) {
 
 function refreshConnectedLabelLauncher(isWelcomeScreen) {
     let launcher = document.getElementById("md-label-connected-launcher");
-    const editButton = document.querySelector('button[aria-label="편집 적용"]');
+    const editButton = document.querySelector('button[aria-label="편집 적용"], button[aria-label="Commit changes"]');
     const toolbarHost = editButton?.parentElement || [...document.querySelectorAll('[class*="toolbarLabel"]')]
         .find(element => element.querySelector("h3"));
     if (isWelcomeScreen || !toolbarHost) {
@@ -448,11 +456,11 @@ function refreshConnectedLabelLauncher(isWelcomeScreen) {
         launcher = createElement("button");
         launcher.id = "md-label-connected-launcher";
         launcher.type = "button";
-        launcher.setAttribute("aria-label", "MiniDisc 라벨 만들기");
+        launcher.setAttribute("aria-label", uiText("MiniDisc 라벨 만들기", "Create a MiniDisc label"));
         const image = document.createElement("img");
         image.src = "sandbox://assets/md-label-maker.png";
         image.alt = "";
-        launcher.append(image, createElement("span", "", "라벨 만들기"));
+        launcher.append(image, createElement("span", "", uiText("라벨 만들기", "Create label")));
         launcher.addEventListener("click", () => void openLabelMakerFrom(launcher));
     }
     if (launcher.parentElement !== toolbarHost)
@@ -465,7 +473,7 @@ function refreshLauncher() {
     const pageText = document.body.innerText || document.body.textContent || "";
     const isWelcomeScreen =
         pageText.includes("사용할 디스크 모드를 선택하세요") ||
-        /select (?:a )?disc mode/i.test(pageText) ||
+        /(?:choose|select) (?:the |a )?disc mode/i.test(pageText) ||
         (pageText.includes("NetMD로 연결") && pageText.includes("Hi-MD로 연결"));
     const panel = findWelcomePanel();
     let launcher = document.getElementById("md-squirrel-launcher");
@@ -509,7 +517,7 @@ function buildAlbumGroups(tracks) {
     tracks.forEach((track, index) => {
         const album = String(track.album || "").trim();
         const sourceParts = String(track.sourcePath || "").split(/[\\/]/).filter(Boolean);
-        const parentFolder = sourceParts.length > 1 ? sourceParts[sourceParts.length - 2] : "앨범 태그 없음";
+        const parentFolder = sourceParts.length > 1 ? sourceParts[sourceParts.length - 2] : uiText("앨범 태그 없음", "No album tag");
         const key = album
             ? `album:${album.toLocaleLowerCase()}`
             : `folder:${parentFolder.toLocaleLowerCase()}`;
@@ -523,7 +531,7 @@ function buildAlbumGroups(tracks) {
         return {
             ...group,
             artist,
-            label: `${artist || "아티스트 미상"} — ${group.album || `${group.fallbackName} (앨범 태그 없음)`}`,
+            label: `${artist || uiText("아티스트 미상", "Unknown artist")} — ${group.album || `${group.fallbackName} (${uiText('앨범 태그 없음', 'No album tag')})`}`,
         };
     }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" }));
 }
@@ -591,7 +599,7 @@ function renderAlbumGroups(modal) {
     const tabs = modal.querySelector(".mds-album-tabs");
     tabs.replaceChildren();
     state.albumGroups.forEach(group => {
-        const button = createElement("button", "mds-album-tab", `${group.album || group.fallbackName} · ${group.indices.length}곡`);
+        const button = createElement("button", "mds-album-tab", uiText(`${group.album || group.fallbackName} · ${group.indices.length}곡`, `${group.album || group.fallbackName} · ${group.indices.length} tracks`));
         button.type = "button";
         button.title = group.label;
         button.classList.toggle("active", group.key === state.activeAlbumKey);
@@ -607,8 +615,8 @@ function renderAlbumGroups(modal) {
     });
     const note = modal.querySelector(".mds-group-note");
     note.textContent = state.albumGroups.length > 1
-        ? `${state.albumGroups.length}개 앨범 · 선택한 앨범만 검색·적용`
-        : "앨범 1개 감지";
+        ? uiText(`${state.albumGroups.length}개 앨범 · 선택한 앨범만 검색·적용`, `${state.albumGroups.length} albums · search and apply only to the selected album`)
+        : uiText("앨범 1개 감지", "1 album detected");
 }
 
 function renderTrackTable(modal) {
@@ -622,7 +630,7 @@ function renderTrackTable(modal) {
         original.append(
             createElement("span", "mds-track-original", track.title),
             createElement("span", "mds-track-album",
-                `${track.album || "앨범 태그 없음"}${track.appleMatchNote ? ` · ${track.appleMatchNote}` : ""}`),
+                `${track.album || uiText("앨범 태그 없음", "No album tag")}${track.appleMatchNote ? ` · ${track.appleMatchNote}` : ""}`),
         );
         row.append(original);
         const titleCell = document.createElement("td");
@@ -642,11 +650,11 @@ function renderTrackTable(modal) {
         if (showCandidateSelect) {
             const candidateTools = titleCell.querySelector(".mds-candidate-tools");
             const candidateSelect = createElement("select", "mds-candidate-select");
-            const placeholder = createElement("option", "", `후보 ${track.appleCandidates.length}개 — 직접 선택`);
+            const placeholder = createElement("option", "", uiText(`후보 ${track.appleCandidates.length}개 — 직접 선택`, `${track.appleCandidates.length} candidates — choose manually`));
             placeholder.value = "";
             candidateSelect.append(placeholder);
             track.appleCandidates.forEach((candidate, candidateIndex) => {
-                const difference = candidate.durationDiff === null ? "시간 미상" : `${candidate.durationDiff}초 차이`;
+                const difference = candidate.durationDiff === null ? uiText("시간 미상", "Unknown duration") : uiText(`${candidate.durationDiff}초 차이`, `${candidate.durationDiff}s difference`);
                 const option = createElement("option", "",
                     `${candidate.title} — ${candidate.artist} · ${difference}`);
                 option.value = String(candidateIndex);
@@ -661,8 +669,8 @@ function renderTrackTable(modal) {
                 track.englishAlbum = candidate.album || track.englishAlbum;
                 track.appleMatchNote =
                     hasEastAsianText(track.englishTitle) || hasEastAsianText(track.englishArtist)
-                        ? "사용자 선택 후보에 한글·일본어·한자 포함 · 확인 필요"
-                        : "Apple 영문 후보 · 사용자 선택";
+                        ? uiText("사용자 선택 후보에 한글·일본어·한자 포함 · 확인 필요", "Selected candidate contains Korean, Japanese, or CJK text · review required")
+                        : uiText("Apple 영문 후보 · 사용자 선택", "Apple English candidate · selected manually");
                 track.appleNeedsChoice = false;
                 renderTrackTable(modal);
             });
@@ -670,14 +678,14 @@ function renderTrackTable(modal) {
         }
         if (showWebSearch) {
             const candidateTools = titleCell.querySelector(".mds-candidate-tools");
-            const webSearch = createElement("button", "mds-web-search", "🌐 웹에서 직접 찾기");
+            const webSearch = createElement("button", "mds-web-search", uiText("🌐 웹에서 직접 찾기", "🌐 Search the web"));
             webSearch.type = "button";
-            webSearch.title = `${track.title} ${track.albumArtist || track.artist || ""} 영어 제목`;
+            webSearch.title = `${track.title} ${track.albumArtist || track.artist || ""} ${uiText('영어 제목', 'English title')}`;
             webSearch.addEventListener("click", () => {
                 void ipcRenderer.invoke("mdSquirrelOpenWebSearch", {
                     title: track.title,
                     artist: track.canonicalArtist || track.albumArtist || track.artist || "",
-                }).catch(error => showToast(`웹 검색을 열지 못했습니다: ${error.message}`));
+                }).catch(error => showToast(`${uiText('웹 검색을 열지 못했습니다', 'Could not open the web search')}: ${error.message}`));
             });
             candidateTools.append(webSearch);
         }
@@ -691,7 +699,7 @@ function renderTrackTable(modal) {
         body.append(row);
     });
     modal.querySelector(".mds-track-count").textContent =
-        `${state.tracks.length}곡 · ${state.albumGroups.length}개 앨범`;
+        uiText(`${state.tracks.length}곡 · ${state.albumGroups.length}개 앨범`, `${state.tracks.length} tracks · ${state.albumGroups.length} albums`);
 }
 
 function syncTrackEdits(modal) {
@@ -716,14 +724,14 @@ function inferAlbumInfo(modal) {
 }
 
 async function chooseFolder(modal, button) {
-    setBusy(button, true, "음원 읽는 중…");
+    setBusy(button, true, uiText("음원 읽는 중…", "Reading audio…"));
     try {
         const folder = await ipcRenderer.invoke("mdSquirrelSelectFolder");
         if (!folder)
             return;
         const tracks = await ipcRenderer.invoke("mdSquirrelScanFolder", folder);
         if (!tracks.length) {
-            showToast("선택한 폴더에서 지원하는 음원 파일을 찾지 못했습니다.");
+            showToast(uiText("선택한 폴더에서 지원하는 음원 파일을 찾지 못했습니다.", "No supported audio files were found in the selected folder."));
             return;
         }
         state.folder = folder;
@@ -740,11 +748,11 @@ async function chooseFolder(modal, button) {
         renderTrackTable(modal);
         const generate = modal.querySelector(".mds-generate");
         generate.classList.remove("mds-hidden");
-        generate.textContent = "영문 복사본 만들기";
-        generate.dataset.originalText = "영문 복사본 만들기";
+        generate.textContent = uiText("영문 복사본 만들기", "Create English copies");
+        generate.dataset.originalText = uiText("영문 복사본 만들기", "Create English copies");
     }
     catch (error) {
-        showToast(`폴더를 읽지 못했습니다: ${error.message}`);
+        showToast(`${uiText('폴더를 읽지 못했습니다', 'Could not read the folder')}: ${error.message}`);
     }
     finally {
         setBusy(button, false);
@@ -755,37 +763,37 @@ async function searchMusicBrainz(modal, button) {
     const artist = modal.querySelector(".mds-artist-query").value.trim();
     const album = modal.querySelector(".mds-album-query").value.trim();
     if (!artist && !album) {
-        showToast("아티스트나 앨범 이름을 입력해 주세요.");
+        showToast(uiText("아티스트나 앨범 이름을 입력해 주세요.", "Enter an artist or album name."));
         return;
     }
     const resultsRoot = modal.querySelector(".mds-results");
-    setBusy(button, true, "검색 중…");
-    resultsRoot.replaceChildren(createElement("span", "", "MusicBrainz에서 앨범을 찾고 있습니다…"));
+    setBusy(button, true, uiText("검색 중…", "Searching…"));
+    resultsRoot.replaceChildren(createElement("span", "", uiText("MusicBrainz에서 앨범을 찾고 있습니다…", "Searching MusicBrainz for the album…")));
     try {
         const releases = await ipcRenderer.invoke("mdSquirrelSearchReleases", { artist, album });
         resultsRoot.replaceChildren();
         if (!releases.length) {
             resultsRoot.append(createElement("span", "",
-                "등록된 영문 앨범판이 없습니다. 위의 ‘전체 곡 개별 검색’을 이용해 보세요."));
+                uiText("등록된 영문 앨범판이 없습니다. 위의 ‘전체 곡 개별 검색’을 이용해 보세요.", "No English album edition was found. Try the individual track search above.")));
             return;
         }
         releases.forEach(release => {
             const item = createElement("div", "mds-release");
             const info = document.createElement("div");
             const edition = release.script === "Latn" || release.language === "eng"
-                ? "영문판"
-                : (release.country || "국가 미상");
+                ? uiText("영문판", "English edition")
+                : (release.country || uiText("국가 미상", "Unknown country"));
             info.append(
                 createElement("strong", "", release.title),
-                createElement("span", "", `${release.artist} · ${release.date || "연도 미상"} · ${edition} · ${release.trackCount}곡 · 일치도 ${release.score}%`),
+                createElement("span", "", uiText(`${release.artist} · ${release.date || "연도 미상"} · ${edition} · ${release.trackCount}곡 · 일치도 ${release.score}%`, `${release.artist} · ${release.date || "Unknown year"} · ${edition} · ${release.trackCount} tracks · ${release.score}% match`)),
             );
-            const apply = createElement("button", "mds-button", "이 정보 적용");
+            const apply = createElement("button", "mds-button", uiText("이 정보 적용", "Apply this release"));
             apply.addEventListener("click", async () => {
-                setBusy(apply, true, "불러오는 중…");
+                setBusy(apply, true, uiText("불러오는 중…", "Loading…"));
                 try {
                     const details = await ipcRenderer.invoke("mdSquirrelGetReleaseTracks", release.id);
                     if (isMostlyNonEnglishTrackList(details)) {
-                        showToast("이 판본은 한글·일본어 제목이 대부분이라 적용하지 않았습니다. 영문판을 선택해 주세요.");
+                        showToast(uiText("이 판본은 한글·일본어 제목이 대부분이라 적용하지 않았습니다. 영문판을 선택해 주세요.", "This release mostly contains Korean or Japanese titles, so it was not applied. Choose an English edition."));
                         return;
                     }
                     const activeIndices = getActiveTrackIndices();
@@ -803,11 +811,11 @@ async function searchMusicBrainz(modal, button) {
                     }
                     renderTrackTable(modal);
                     showToast(count === activeIndices.length
-                        ? `${count}곡에 MusicBrainz 정보를 적용했습니다. 제목을 확인해 주세요.`
-                        : `${count}/${activeIndices.length}곡을 정확히 연결했습니다. 나머지는 제목을 직접 확인해 주세요.`);
+                        ? uiText(`${count}곡에 MusicBrainz 정보를 적용했습니다. 제목을 확인해 주세요.`, `Applied MusicBrainz information to ${count} tracks. Review the titles.`)
+                        : uiText(`${count}/${activeIndices.length}곡을 정확히 연결했습니다. 나머지는 제목을 직접 확인해 주세요.`, `Matched ${count}/${activeIndices.length} tracks exactly. Review the remaining titles manually.`));
                 }
                 catch (error) {
-                    showToast(`앨범 정보를 불러오지 못했습니다: ${error.message}`);
+                    showToast(`${uiText('앨범 정보를 불러오지 못했습니다', 'Could not load album information')}: ${error.message}`);
                 }
                 finally {
                     setBusy(apply, false);
@@ -819,7 +827,7 @@ async function searchMusicBrainz(modal, button) {
     }
     catch (error) {
         resultsRoot.replaceChildren();
-        showToast(`앨범 검색에 실패했습니다: ${error.message}`);
+        showToast(`${uiText('앨범 검색에 실패했습니다', 'Album search failed')}: ${error.message}`);
     }
     finally {
         setBusy(button, false);
@@ -830,7 +838,7 @@ async function searchIndividualTracks(modal, button) {
     if (!state.tracks.length)
         return;
     syncTrackEdits(modal);
-    setBusy(button, true, `${state.tracks.length}곡 검색 중…`);
+    setBusy(button, true, uiText(`${state.tracks.length}곡 검색 중…`, `Searching ${state.tracks.length} tracks…`));
     try {
         const matches = await ipcRenderer.invoke("mdSquirrelSearchITunesTracks",
             state.tracks.map(track => ({
@@ -854,7 +862,7 @@ async function searchIndividualTracks(modal, button) {
                 track.appleCandidates = [];
                 track.appleNeedsChoice = false;
                 track.appleSearchAttempted = false;
-                track.appleMatchNote = "영문·로마자 제목 유지";
+                track.appleMatchNote = uiText("영문·로마자 제목 유지", "Kept English or romanized title");
                 preserved += 1;
                 return;
             }
@@ -866,12 +874,12 @@ async function searchIndividualTracks(modal, button) {
             }
             if (!track || !match) {
                 if (track)
-                    track.appleMatchNote = "영문 후보 없음 · 직접 입력 필요";
+                    track.appleMatchNote = uiText("영문 후보 없음 · 직접 입력 필요", "No English candidate · manual entry required");
                 skipped += 1;
                 return;
             }
             if (match.durationDiff !== null && match.durationDiff > 20) {
-                track.appleMatchNote = `후보 선택 필요 · 재생시간 ${match.durationDiff}초 차이`;
+                track.appleMatchNote = uiText(`후보 선택 필요 · 재생시간 ${match.durationDiff}초 차이`, `Candidate selection required · ${match.durationDiff}s duration difference`);
                 track.appleNeedsChoice = Boolean(track.appleCandidates.length);
                 skipped += 1;
                 return;
@@ -882,20 +890,20 @@ async function searchIndividualTracks(modal, button) {
             const hasRemainingAsianText =
                 hasEastAsianText(track.englishTitle) || hasEastAsianText(track.englishArtist);
             track.appleMatchNote = hasRemainingAsianText
-                ? "영문 후보에 한글·일본어·한자 포함 · 확인 필요"
+                ? uiText("영문 후보에 한글·일본어·한자 포함 · 확인 필요", "English candidate contains Korean, Japanese, or CJK text · review required")
                 : (match.durationDiff === null
-                    ? "Apple 영문 후보 · 시간 확인 필요"
-                    : `Apple 영문 후보 · 시간 차 ${match.durationDiff}초`);
+                    ? uiText("Apple 영문 후보 · 시간 확인 필요", "Apple English candidate · duration check required")
+                    : uiText(`Apple 영문 후보 · 시간 차 ${match.durationDiff}초`, `Apple English candidate · ${match.durationDiff}s duration difference`));
             track.appleNeedsChoice = false;
             applied += 1;
         });
         renderTrackTable(modal);
         showToast(skipped
-            ? `${applied}곡 적용 · ${preserved}곡 원문 유지 · ${skipped}곡은 찾지 못했거나 시간이 달라 보류했습니다.`
-            : `${applied}곡 적용 · ${preserved}곡은 기존 영문·로마자 제목을 유지했습니다. 제목을 확인해 주세요.`);
+            ? uiText(`${applied}곡 적용 · ${preserved}곡 원문 유지 · ${skipped}곡은 찾지 못했거나 시간이 달라 보류했습니다.`, `Applied ${applied} · kept ${preserved} original · skipped ${skipped} because no match was found or durations differed.`)
+            : uiText(`${applied}곡 적용 · ${preserved}곡은 기존 영문·로마자 제목을 유지했습니다. 제목을 확인해 주세요.`, `Applied ${applied} · kept existing English or romanized titles for ${preserved}. Review the titles.`));
     }
     catch (error) {
-        showToast(`곡별 영문 검색에 실패했습니다: ${error.message}`);
+        showToast(`${uiText('곡별 영문 검색에 실패했습니다', 'Individual track search failed')}: ${error.message}`);
     }
     finally {
         setBusy(button, false);
@@ -905,11 +913,11 @@ async function searchIndividualTracks(modal, button) {
 async function generateCopies(modal, button) {
     syncTrackEdits(modal);
     if (state.tracks.some(track => !track.englishTitle)) {
-        showToast("비어 있는 영문 제목이 있습니다.");
+        showToast(uiText("비어 있는 영문 제목이 있습니다.", "One or more English titles are empty."));
         return;
     }
     const progress = modal.querySelector(".mds-progress");
-    setBusy(button, true, "복사본 만드는 중…");
+    setBusy(button, true, uiText("복사본 만드는 중…", "Creating copies…"));
     progress.classList.add("visible");
     try {
         const result = await ipcRenderer.invoke("mdSquirrelCreateCopies", {
@@ -919,13 +927,13 @@ async function generateCopies(modal, button) {
         state.outputFolder = result.outputFolder;
         const warnings = result.results.filter(item => item.warning);
         showToast(warnings.length
-            ? `${result.results.length}곡 완료 · ${warnings.length}곡은 파일명만 변경했습니다.`
-            : `${result.results.length}곡의 영문 복사본을 만들었습니다.`);
-        button.textContent = "완성 폴더 열기";
-        button.dataset.originalText = "완성 폴더 열기";
+            ? uiText(`${result.results.length}곡 완료 · ${warnings.length}곡은 파일명만 변경했습니다.`, `Completed ${result.results.length} tracks · only filenames were changed for ${warnings.length}.`)
+            : uiText(`${result.results.length}곡의 영문 복사본을 만들었습니다.`, `Created English copies of ${result.results.length} tracks.`));
+        button.textContent = uiText("완성 폴더 열기", "Open output folder");
+        button.dataset.originalText = uiText("완성 폴더 열기", "Open output folder");
     }
     catch (error) {
-        showToast(`복사본 생성에 실패했습니다: ${error.message}`);
+        showToast(`${uiText('복사본 생성에 실패했습니다', 'Could not create copies')}: ${error.message}`);
     }
     finally {
         progress.classList.remove("visible");
@@ -941,42 +949,42 @@ function createModal() {
         <header class="mds-header">
           <div class="mds-brand">
             <img src="sandbox://assets/md-squirrel.png" alt="">
-            <div><h2>MD Squirrel</h2><p>MiniDisc용 영문 음원 복사본 제작 도우미</p></div>
+            <div><h2>MD Squirrel</h2><p>${uiText('MiniDisc용 영문 음원 복사본 제작 도우미', 'Create English-tagged audio copies for MiniDisc')}</p></div>
           </div>
           <div class="mds-header-folder mds-hidden">
-            <div class="mds-folderinfo"><span>선택 폴더</span><strong class="mds-folder-path"></strong></div>
-            <button class="mds-button ghost mds-select-again" type="button">폴더 변경</button>
+            <div class="mds-folderinfo"><span>${uiText('선택 폴더', 'Selected folder')}</span><strong class="mds-folder-path"></strong></div>
+            <button class="mds-button ghost mds-select-again" type="button">${uiText('폴더 변경', 'Change folder')}</button>
           </div>
           <div class="mds-header-actions">
             <div class="mds-progress">
               <div class="mds-progress-track"><div class="mds-progress-bar"></div></div>
               <span class="mds-progress-text"></span>
             </div>
-            <button class="mds-button ghost mds-generate mds-hidden" type="button">영문 복사본 만들기</button>
-            <button class="mds-close" type="button" aria-label="닫기">×</button>
+            <button class="mds-button ghost mds-generate mds-hidden" type="button">${uiText('영문 복사본 만들기', 'Create English copies')}</button>
+            <button class="mds-close" type="button" aria-label="${uiText('닫기', 'Close')}">×</button>
           </div>
         </header>
         <div class="mds-body">
           <section class="mds-start mds-card">
             <div class="mds-start-inner">
-              <span class="mds-safe">원본 음원은 그대로 안전하게</span>
-              <h3>음원 폴더를 골라 주세요</h3>
-              <p>파일명과 태그를 읽고 영문 제목 후보를 찾은 뒤, 원본 옆에 <strong>[English]</strong> 폴더를 새로 만듭니다.</p>
-              <button class="mds-button primary mds-select-first" type="button">폴더 선택</button>
+              <span class="mds-safe">${uiText('원본 음원은 그대로 안전하게', 'Original audio remains unchanged')}</span>
+              <h3>${uiText('음원 폴더를 골라 주세요', 'Choose an audio folder')}</h3>
+              <p>${uiText('파일명과 태그를 읽고 영문 제목 후보를 찾은 뒤, 원본 옆에', 'MD Squirrel reads filenames and tags, finds English title candidates, and creates a new')} <strong>[English]</strong> ${uiText('폴더를 새로 만듭니다.', 'folder next to the originals.')}</p>
+              <button class="mds-button primary mds-select-first" type="button">${uiText('폴더 선택', 'Choose folder')}</button>
             </div>
           </section>
           <section class="mds-workspace mds-hidden">
             <div class="mds-card">
               <div class="mds-heading">
-                <h3>1. 영문 제목 확인 및 수정</h3>
+                <h3>${uiText('1. 영문 제목 확인 및 수정', '1. Review and edit English titles')}</h3>
                 <div class="mds-heading-actions">
                   <span class="mds-track-count"></span>
-                  <button class="mds-button primary mds-track-search" type="button">🔎 전체 곡 영문 제목 찾기</button>
+                  <button class="mds-button primary mds-track-search" type="button">${uiText('🔎 전체 곡 영문 제목 찾기', '🔎 Find English titles for all tracks')}</button>
                 </div>
               </div>
               <div class="mds-table-wrap">
                 <table class="mds-table">
-                  <thead><tr><th>#</th><th>원래 제목</th><th>영문 제목</th><th>아티스트</th></tr></thead>
+                  <thead><tr><th>#</th><th>${uiText('원래 제목', 'Original title')}</th><th>${uiText('영문 제목', 'English title')}</th><th>${uiText('아티스트', 'Artist')}</th></tr></thead>
                   <tbody class="mds-track-body"></tbody>
                 </table>
               </div>
