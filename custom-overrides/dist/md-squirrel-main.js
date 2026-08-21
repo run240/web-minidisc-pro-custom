@@ -17,10 +17,11 @@ const MUSICBRAINZ_USER_AGENT = "MD-Squirrel/0.1.0 (https://github.com/run240/web
 let lastMusicBrainzRequestAt = 0;
 let mdLabelMakerWindow = null;
 let preserveLabelDraftOnClose = false;
-let resolveUILanguage = () => /^ko(?:-|$)/i.test(app.getLocale()) ? "ko" : "en";
-const uiText = (korean, english) => resolveUILanguage() === "ko" ? korean : english;
+let resolveUILanguage = null;
 
 function getUILanguage() {
+    if (resolveUILanguage)
+        return resolveUILanguage();
     try {
         const configured = new ElectronStore().get("uiLanguage", "auto");
         if (configured === "ko" || configured === "en")

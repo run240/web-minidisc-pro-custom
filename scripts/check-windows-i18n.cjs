@@ -10,6 +10,7 @@ const files = [
   "custom-overrides/dist/preload.js",
   "custom-overrides/dist/md-squirrel-main.js",
   "custom-overrides/dist/md-squirrel-preload.js",
+  "custom-overrides/md-label-maker/app.js",
   "custom-overrides/renderer/assets/index-DdAyCQFX.js",
 ];
 
@@ -31,6 +32,7 @@ const intentionalKorean = new Map([
     "일반 MD",
     "현재 RH10은 일반 MD",
     "button[aria-label=\"편집 적용\"]",
+    "button[aria-label=\"편집 적용\"], button[aria-label=\"Commit changes\"]",
     "색상 테마",
     "화면 테마",
     "세로 방향으로 화면 채우기",
@@ -77,6 +79,10 @@ function checkText(file, sourceFile, node, value, failures) {
     return; // Character encoding lookup data, not UI copy.
   if (file.endsWith("preload.js") &&
       isInsideNamedDeclaration(node, ["koreanText", "koreanAttributes"])) {
+    return;
+  }
+  if (file === "custom-overrides/md-label-maker/app.js" &&
+      isInsideNamedDeclaration(node, ["STATIC_LABEL_TRANSLATIONS"])) {
     return;
   }
   if (file === "custom-overrides/dist/preload.js" &&

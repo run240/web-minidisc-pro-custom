@@ -1832,7 +1832,7 @@ async function saveAutoDraftNow() {
   try {
     await window.mdLabelMaker.saveDraft(projectData());
   } catch (error) {
-    console.warn("라벨 작업 자동 저장 실패:", error);
+    console.warn(uiText("라벨 작업 자동 저장 실패:", "Label project auto-save failed:"), error);
   }
 }
 
@@ -1879,7 +1879,7 @@ async function restoreAutoDraft() {
     applyProjectData(project);
     return true;
   } catch (error) {
-    console.warn("라벨 작업 자동 복구 실패:", error);
+    console.warn(uiText("라벨 작업 자동 복구 실패:", "Label project auto-restore failed:"), error);
     return false;
   }
 }
