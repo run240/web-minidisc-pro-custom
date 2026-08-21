@@ -3577,16 +3577,35 @@ exports.CHANGELOG = [
     // MD Squirrel stays isolated from the React tree. The launcher is shown
     // only on the mode-selection screen and opens a self-contained modal.
     require("./md-squirrel-preload").install();
-    const observer = new MutationObserver(refreshKoreanUI);
+    const observerOptions = { childList: true, characterData: true, subtree: true };
+    let refreshScheduled = false;
+    const observer = new MutationObserver(() => {
+        if (refreshScheduled)
+            return;
+        refreshScheduled = true;
+        requestAnimationFrame(() => {
+            refreshScheduled = false;
+            observer.disconnect();
+            try {
+                refreshKoreanUI();
+            }
+            finally {
+                observer.observe(document.body, observerOptions);
+            }
+        });
+    });
+    const observeAndRefreshKoreanUI = () => {
+        observer.observe(document.body, observerOptions);
+        observer.takeRecords();
+        refreshKoreanUI();
+    };
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-            refreshKoreanUI();
+            observeAndRefreshKoreanUI();
         }, { once: true });
     }
     else {
-        observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-        refreshKoreanUI();
+        observeAndRefreshKoreanUI();
     }
     console.log('====PRELOAD COMPLETE====');
     console.groupEnd();
