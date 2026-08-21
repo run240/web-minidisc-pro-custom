@@ -21,12 +21,12 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -55,13 +55,13 @@ jobs:
 
       - name: Upload unsigned artifact
         id: upload-unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-minidisc-pro-windows-unsigned
           path: staging
 
       - name: Upload release ZIP and checksum
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-minidisc-pro-windows-release
           path: build/release/*
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload signed application
         if: ${{ github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-minidisc-pro-windows-signed
           path: signed
