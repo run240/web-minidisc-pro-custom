@@ -39,11 +39,19 @@ The project does not operate a telemetry or analytics service.
 
 ## Windows system changes
 
-The optional WinUSB helper changes the selected MiniDisc device's Windows
-driver only after an explicit user action and a Windows elevation prompt.
-Users should back up important recordings before testing.
+The optional WinUSB installation flow changes the selected MiniDisc device's
+Windows driver only after an explicit user action and a Windows elevation
+prompt. It uses Windows' own `certutil.exe` and `pnputil.exe` tools. The bundled
+driver catalog is signed with the project's self-signed test-driver
+certificate, which is added to the Local Machine Root and Trusted Publishers
+stores before the driver package is installed. The certificate is used only
+for this bundled MiniDisc WinUSB driver package. Users should back up important
+recordings before testing.
 
 To remove the application, delete its extracted application directory. To undo
 the optional WinUSB driver change, use Windows Device Manager to uninstall the
 device/driver and then reconnect the device so Windows can select another
-available driver.
+available driver. The certificate can then be removed from the Local Machine
+Root and Trusted Publishers stores using its subject name
+`Web MiniDisc Pro WinUSB Test Driver`. See `docs/WINDOWS.md` for the complete
+removal procedure.

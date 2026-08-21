@@ -1,11 +1,137 @@
+const LABEL_UI_LANGUAGE = new URLSearchParams(window.location.search).get("lang") ||
+  localStorage.getItem("wmdUiLanguage") ||
+  (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
+const isKoreanUI = LABEL_UI_LANGUAGE === "ko";
+const uiText = (korean, english) => isKoreanUI ? korean : english;
+
+const STATIC_LABEL_TRANSLATIONS = new Map(Object.entries({
+  "MiniDisc 라벨 만들기": "MiniDisc Label Maker",
+  "라벨 설정": "Label settings",
+  "저장": "Save",
+  "작업 불러오기": "Load project",
+  "연결된 MD 목록 가져오기": "Import connected MD tracks",
+  "출력할 라벨": "Labels to output",
+  "디스크": "Disc",
+  "케이스": "Case",
+  "측면": "Spine",
+  "선택한 라벨만 용지 크기에 맞춰 자동으로 배치합니다.": "Only selected label types are arranged automatically for the paper size.",
+  "인쇄 용지": "Print paper",
+  "용지 크기": "Paper size",
+  "포토 4×6인치 (101.6 × 152.4mm)": "Photo 4×6 in (101.6 × 152.4 mm)",
+  "미니 포토 2×3 (50 × 76mm)": "Mini photo 2×3 in (50 × 76 mm)",
+  "카드형 포토 (54 × 86mm)": "Card photo (54 × 86 mm)",
+  "엽서 (100 × 148mm)": "Postcard (100 × 148 mm)",
+  "사용자 지정": "Custom",
+  "가로 (mm)": "Width (mm)",
+  "세로 (mm)": "Height (mm)",
+  "용지 구성": "Sheet layout",
+  "현재 라벨로 용지 채우기": "Fill sheet with current label",
+  "목록의 여러 라벨 배치": "Arrange multiple labels from the list",
+  "A4 한 장당 라벨 수": "Labels per A4 sheet",
+  "편집할 라벨": "Label to edit",
+  "추가": "Add",
+  "복제": "Duplicate",
+  "삭제": "Delete",
+  "라벨마다 제목, 트랙, 이미지, 색상과 배치를 따로 설정할 수 있습니다. 빈 칸에는 첫 번째 라벨이 반복됩니다.": "Each label can have its own title, tracks, images, colors, and layout. Empty slots repeat the first label.",
+  "앨범 정보": "Album information",
+  "앨범명": "Album title",
+  "아티스트명": "Artist",
+  "연도": "Year",
+  "글꼴": "Font",
+  "색상": "Colors",
+  "디스크 배경": "Disc background",
+  "디스크 글자": "Disc text",
+  "케이스 배경": "Case background",
+  "케이스 글자": "Case text",
+  "측면 배경": "Spine background",
+  "측면 글자": "Spine text",
+  "디스크 라벨": "Disc label",
+  "배치": "Layout",
+  "정사각형 이미지와 제목": "Square image and title",
+  "작은 이미지와 트랙 목록": "Small image and track list",
+  "배경 이미지와 트랙 목록": "Background image and track list",
+  "트랙 목록": "Track list",
+  "전체 라벨 이미지": "Full label image",
+  "글자만": "Text only",
+  "디스크 이미지": "Disc image",
+  "디스크 이미지 지우기": "Clear disc image",
+  "전체 라벨 이미지 권장 크기:": "Recommended full-label image size:",
+  "재단 크기 320×486~360×547px 또는": "Trim size 320×486–360×547 px, or",
+  "2mm 여백 포함 360×528~400×587px": "360×528–400×587 px including 2 mm bleed",
+  "이미지 맞춤": "Image fit",
+  "꽉 채우기": "Cover",
+  "전체 보기": "Contain",
+  "케이스 라벨": "Case label",
+  "형식": "Format",
+  "J 카드": "J-card",
+  "이미지": "Image",
+  "이미지와 트랙 목록": "Image and track list",
+  "제목 영역 표시": "Show title area",
+  "J 카드 측면 정보 표시": "Show J-card spine information",
+  "케이스 이미지": "Case image",
+  "케이스 이미지 지우기": "Clear case image",
+  "전체 케이스 이미지 권장 크기:": "Recommended full-case image size:",
+  "재단 크기 640×541~700×592px 또는": "Trim size 640×541–700×592 px, or",
+  "2mm 여백 포함 680×580~740×632px": "680×580–740×632 px including 2 mm bleed",
+  "라벨에 표시할 곡": "Tracks shown on the label",
+  "디스크 또는 케이스에서 트랙 목록 배치를 선택했을 때 사용됩니다.": "Used when a track-list layout is selected for the disc or case.",
+  "측면 라벨": "Spine label",
+  "앨범명 : 아티스트명 자동 사용": "Use album title : artist automatically",
+  "직접 입력": "Custom text",
+  "MiniDisc 로고": "MiniDisc logo",
+  "로고 모양": "Logo style",
+  "명암 자동 선택": "Automatic contrast",
+  "검은색 로고": "Black logo",
+  "흰색 로고": "White logo",
+  "이모지 💽": "Emoji 💽",
+  "로고 없음": "No logo",
+  "로고 위치": "Logo position",
+  "오른쪽 아래": "Bottom right",
+  "왼쪽 아래": "Bottom left",
+  "오른쪽 위": "Top right",
+  "A4 인쇄 미리보기": "A4 print preview",
+  "인쇄 미리보기": "Print preview",
+  "A4 · 210 × 297mm · 100% 실제 크기": "A4 · 210 × 297 mm · 100% actual size",
+  "닫기": "Close",
+  "저장 형식 선택": "Choose save format",
+  "저장할 형식을 선택하세요.": "Choose a format to save.",
+  "모든 작업은 컴퓨터 안에서 처리되며 외부로 전송되지 않습니다. 원본 CC0 프로젝트와 문제 제보는": "All work is processed locally and is not uploaded. See the original CC0 project and report issues on",
+  "에서 확인할 수 있습니다. 원작자 후원은": ". Support the original author through",
+  "를 이용해 주세요.": ".",
+}));
+
+function translateStaticLabelMakerUI() {
+  document.documentElement.lang = LABEL_UI_LANGUAGE;
+  if (isKoreanUI) return;
+  document.title = "MiniDisc Label Maker";
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const original = node.nodeValue || "";
+    const trimmed = original.trim();
+    const translated = STATIC_LABEL_TRANSLATIONS.get(trimmed);
+    if (!translated) continue;
+    node.nodeValue = `${original.match(/^\s*/)?.[0] || ""}${translated}${original.match(/\s*$/)?.[0] || ""}`;
+  }
+  for (const element of document.querySelectorAll("[aria-label], [title]")) {
+    for (const attribute of ["aria-label", "title"]) {
+      const value = element.getAttribute(attribute);
+      const translated = STATIC_LABEL_TRANSLATIONS.get(value || "");
+      if (translated) element.setAttribute(attribute, translated);
+    }
+  }
+}
+
+translateStaticLabelMakerUI();
+
 const PT_TO_MM = 0.352777778;
 let PAGE = { width: 210, height: 297 };
 const PAPER_SIZES = {
   a4: { name: "A4", width: 210, height: 297, copies: [1, 2, 4, 6] },
-  "photo-4x6": { name: "포토 4×6인치", width: 101.6, height: 152.4, copies: [1] },
-  "mini-2x3": { name: "미니 포토 2×3인치", width: 50, height: 76, copies: [1], layout: "disc-spine" },
-  "card-photo": { name: "카드형 포토용지", width: 54, height: 86, copies: [1], layout: "disc-spine" },
-  postcard: { name: "엽서", width: 100, height: 148, copies: [1] },
+  "photo-4x6": { name: uiText("포토 4×6인치", "Photo 4×6 in"), width: 101.6, height: 152.4, copies: [1] },
+  "mini-2x3": { name: uiText("미니 포토 2×3인치", "Mini photo 2×3 in"), width: 50, height: 76, copies: [1], layout: "disc-spine" },
+  "card-photo": { name: uiText("카드형 포토용지", "Card photo paper"), width: 54, height: 86, copies: [1], layout: "disc-spine" },
+  postcard: { name: uiText("엽서", "Postcard"), width: 100, height: 148, copies: [1] },
 };
 const A4_COPY_OPTIONS = {
   full: [1, 2, 4, 6],
@@ -362,8 +488,8 @@ function syncLabelPicker() {
   const picker = controls["selected-label"];
   picker.innerHTML = state.labels
     .map((labelConfig, index) => {
-      const name = labelConfig.album || `라벨 ${index + 1}`;
-      return `<option value="${index}">라벨 ${index + 1}: ${escapeXml(name)}</option>`;
+      const name = labelConfig.album || uiText(`라벨 ${index + 1}`, `Label ${index + 1}`);
+      return `<option value="${index}">${uiText(`라벨 ${index + 1}`, `Label ${index + 1}`)}: ${escapeXml(name)}</option>`;
     })
     .join("");
   picker.value = String(Math.min(state.selectedIndex, state.labels.length - 1));
@@ -736,9 +862,9 @@ function imageFill(href, box, mode = "cover") {
 
 function previewTarget(contents, label, labelIndex, placement) {
   const isSelected = labelIndex === state.selectedIndex;
-  const album = state.labels[labelIndex]?.album || `라벨 ${labelIndex + 1}`;
-  return `<g class="label-preview-target${isSelected ? " is-selected" : ""}" data-label-index="${labelIndex}" role="button" tabindex="0" aria-label="${escapeXml(album)} 라벨 편집">
-    <title>${escapeXml(album)} 편집</title>
+  const album = state.labels[labelIndex]?.album || uiText(`라벨 ${labelIndex + 1}`, `Label ${labelIndex + 1}`);
+  return `<g class="label-preview-target${isSelected ? " is-selected" : ""}" data-label-index="${labelIndex}" role="button" tabindex="0" aria-label="${escapeXml(uiText(`${album} 라벨 편집`, `Edit ${album} label`))}">
+    <title>${escapeXml(uiText(`${album} 편집`, `Edit ${album}`))}</title>
     ${contents}
     ${isSelected ? "" : `<rect data-preview-control="true" class="preview-dim" x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="0.8" />`}
     <rect data-preview-control="true" class="preview-hit-area" x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="0.8" data-placement="${placement}" />
@@ -805,10 +931,10 @@ function logoUse(label, placement, labelConfig) {
 
 function limitedDiscTracks(tracks, maximum) {
   const lines = (tracks || []).filter(Boolean);
-  if (!lines.length) return ["트랙 목록 없음"];
+  if (!lines.length) return [uiText("트랙 목록 없음", "No tracks")];
   if (lines.length <= maximum) return lines;
   const visibleCount = Math.max(1, maximum - 1);
-  return [...lines.slice(0, visibleCount), `… 외 ${lines.length - visibleCount}곡`];
+  return [...lines.slice(0, visibleCount), uiText(`… 외 ${lines.length - visibleCount}곡`, `… and ${lines.length - visibleCount} more`)];
 }
 
 function splitTextAtWidth(value, maxWidth, fontSize, font) {
@@ -1058,11 +1184,14 @@ function renderSheet() {
   const requestedArrangement = outputArrangement(selectedOutputParts({ compactPaper }));
   const requestedRequirement = requestedArrangement !== "none" ? arrangementRequirements(labelConfigs[0])[requestedArrangement] : null;
   const noticeDetail = requestedRequirement
-    ? `필요한 최소 크기 ${Math.ceil(requestedRequirement.width)} × ${Math.ceil(requestedRequirement.height)}mm`
-    : "상단에서 출력할 라벨을 하나 이상 선택하세요";
+    ? uiText(
+      `필요한 최소 크기 ${Math.ceil(requestedRequirement.width)} × ${Math.ceil(requestedRequirement.height)}mm`,
+      `Minimum required size: ${Math.ceil(requestedRequirement.width)} × ${Math.ceil(requestedRequirement.height)} mm`,
+    )
+    : uiText("상단에서 출력할 라벨을 하나 이상 선택하세요", "Select at least one label type above");
   const noFitNotice = copies.length === 0
     ? `<g font-family="Inter, sans-serif" text-anchor="middle" fill="#6d6670">
-        <text x="${PAGE.width / 2}" y="${PAGE.height / 2 - 2}" font-size="${Math.min(3.2, PAGE.width / 14)}" font-weight="700">라벨을 배치할 공간이 부족합니다</text>
+        <text x="${PAGE.width / 2}" y="${PAGE.height / 2 - 2}" font-size="${Math.min(3.2, PAGE.width / 14)}" font-weight="700">${uiText("라벨을 배치할 공간이 부족합니다", "Not enough space to arrange labels")}</text>
         <text x="${PAGE.width / 2}" y="${PAGE.height / 2 + 4}" font-size="${Math.min(2.2, PAGE.width / 20)}">${noticeDetail}</text>
       </g>`
     : "";
@@ -1102,7 +1231,7 @@ function selectedPaper() {
   if (key !== "custom") return PAPER_SIZES[key] || PAPER_SIZES.a4;
   const width = Math.min(500, Math.max(10, Number(controls["custom-paper-width"].value) || 100));
   const height = Math.min(500, Math.max(10, Number(controls["custom-paper-height"].value) || 148));
-  return { name: "사용자 지정", width, height, copies: [1] };
+  return { name: uiText("사용자 지정", "Custom"), width, height, copies: [1] };
 }
 
 function syncPaperSize({ preferMaxCopies = false } = {}) {
@@ -1119,25 +1248,28 @@ function syncPaperSize({ preferMaxCopies = false } = {}) {
   const requestedArrangement = outputArrangement(parts);
   const activeArrangement = selectedArrangement(state.labels[state.selectedIndex], { compactPaper });
   const arrangementNames = {
-    full: "케이스 + 디스크 + 측면",
-    "case-disc": "케이스 + 디스크",
-    "case-spine": "케이스 + 측면",
-    "disc-spine": "디스크 + 측면",
-    disc: "디스크",
-    case: "케이스",
-    spine: "측면",
+    full: uiText("케이스 + 디스크 + 측면", "Case + disc + spine"),
+    "case-disc": uiText("케이스 + 디스크", "Case + disc"),
+    "case-spine": uiText("케이스 + 측면", "Case + spine"),
+    "disc-spine": uiText("디스크 + 측면", "Disc + spine"),
+    disc: uiText("디스크", "Disc"),
+    case: uiText("케이스", "Case"),
+    spine: uiText("측면", "Spine"),
   };
   const requirement = requestedArrangement !== "none" ? arrangementRequirements(state.labels[state.selectedIndex])[requestedArrangement] : null;
   compatibility.textContent = controls["paper-size"].value === "mini-2x3"
-    ? "LG 포켓포토 · 샤오미 · Canon ZINK 계열 규격"
+    ? uiText("LG 포켓포토 · 샤오미 · Canon ZINK 계열 규격", "LG Pocket Photo · Xiaomi · Canon ZINK compatible")
     : controls["paper-size"].value === "card-photo"
-      ? "Canon SELPHY 카드형 규격"
+      ? uiText("Canon SELPHY 카드형 규격", "Canon SELPHY card-size format")
       : controls["paper-size"].value === "custom"
         ? activeArrangement !== "none"
-          ? `현재 크기: ${arrangementNames[activeArrangement]} 라벨 자동 배치`
+          ? uiText(`현재 크기: ${arrangementNames[activeArrangement]} 라벨 자동 배치`, `Current size: automatic ${arrangementNames[activeArrangement]} layout`)
           : requestedArrangement === "none"
-            ? "출력할 라벨을 하나 이상 선택하세요."
-            : `선택한 구성에는 최소 ${Math.ceil(requirement.width)} × ${Math.ceil(requirement.height)}mm가 필요합니다.`
+            ? uiText("출력할 라벨을 하나 이상 선택하세요.", "Select at least one label type to output.")
+            : uiText(
+              `선택한 구성에는 최소 ${Math.ceil(requirement.width)} × ${Math.ceil(requirement.height)}mm가 필요합니다.`,
+              `The selected layout requires at least ${Math.ceil(requirement.width)} × ${Math.ceil(requirement.height)} mm.`,
+            )
         : "";
   compatibility.classList.toggle("hidden", !compatibility.textContent);
   const nonA4Capacity = controls["paper-size"].value === "a4"
@@ -1154,8 +1286,11 @@ function syncPaperSize({ preferMaxCopies = false } = {}) {
       ? availableCopies.at(-1)
       : previousCopies,
   );
-  document.getElementById("copies-label").textContent = `${paper.name} 한 장당 라벨 수`;
-  document.getElementById("paper-summary").textContent = `${paper.name} · ${paper.width} × ${paper.height}mm · 100% 실제 크기`;
+  document.getElementById("copies-label").textContent = uiText(`${paper.name} 한 장당 라벨 수`, `Labels per ${paper.name} sheet`);
+  document.getElementById("paper-summary").textContent = uiText(
+    `${paper.name} · ${paper.width} × ${paper.height}mm · 100% 실제 크기`,
+    `${paper.name} · ${paper.width} × ${paper.height} mm · 100% actual size`,
+  );
   syncSheetMode();
   syncTracklisting();
 }
@@ -1180,13 +1315,15 @@ function syncCaseOptions() {
 
 function syncCaseFormatHint() {
   const isJCard = controls["case-format"].value === "j-card";
-  document.getElementById("case-image-size-title").textContent = isJCard ? "전체 J 카드 이미지 권장 크기:" : "전체 케이스 이미지 권장 크기:";
+  document.getElementById("case-image-size-title").textContent = isJCard
+    ? uiText("전체 J 카드 이미지 권장 크기:", "Recommended full J-card image size:")
+    : uiText("전체 케이스 이미지 권장 크기:", "Recommended full-case image size:");
   document.getElementById("case-image-trim-size").textContent = isJCard
-    ? "재단 크기 640×602~700×659px 또는"
-    : "재단 크기 640×541~700×592px 또는";
+    ? uiText("재단 크기 640×602~700×659px 또는", "Trim size 640×602–700×659 px, or")
+    : uiText("재단 크기 640×541~700×592px 또는", "Trim size 640×541–700×592 px, or");
   document.getElementById("case-image-bleed-size").textContent = isJCard
-    ? "2mm 여백 포함 680×642~740×699px"
-    : "2mm 여백 포함 680×580~740×632px";
+    ? uiText("2mm 여백 포함 680×642~740×699px", "680×642–740×699 px including 2 mm bleed")
+    : uiText("2mm 여백 포함 680×580~740×632px", "680×580–740×632 px including 2 mm bleed");
 }
 
 function syncImageClearButtons() {
@@ -1374,7 +1511,7 @@ async function downloadSvg() {
 
 function canvasToPngBlob(canvas) {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 이미지를 만들지 못했습니다.")), "image/png");
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error(uiText("PNG 이미지를 만들지 못했습니다.", "Could not create the PNG image."))), "image/png");
   });
 }
 
@@ -1384,7 +1521,7 @@ async function downloadPng() {
   if (!svg) return;
   const button = document.getElementById("open-save-dialog");
   const previousText = button.textContent;
-  button.textContent = "PNG 만드는 중...";
+  button.textContent = uiText("PNG 만드는 중...", "Creating PNG...");
   button.disabled = true;
   let imageUrl = "";
   try {
@@ -1404,7 +1541,10 @@ async function downloadPng() {
     downloadBlob(`minidisc-labels-${paperName}-300dpi.png`, await canvasToPngBlob(canvas));
   } catch (error) {
     console.error(error);
-    window.alert(`300DPI PNG를 만들지 못했습니다. (${error?.message || error})`);
+    window.alert(uiText(
+      `300DPI PNG를 만들지 못했습니다. (${error?.message || error})`,
+      `Could not create the 300 DPI PNG. (${error?.message || error})`,
+    ));
   } finally {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     button.textContent = previousText;
@@ -1533,13 +1673,13 @@ function showAppDialog({ icon = "!", title, message, detail = "", actions = [] }
 async function showSaveDialog() {
   const choice = await showAppDialog({
     icon: "💾",
-    title: "저장 형식 선택",
-    message: "현재 용지와 라벨 배치를 어떤 형식으로 저장할까요?",
+    title: uiText("저장 형식 선택", "Choose save format"),
+    message: uiText("현재 용지와 라벨 배치를 어떤 형식으로 저장할까요?", "Which format should be used to save the current sheet and label layout?"),
     actions: [
-      { value: "pdf", label: "PDF", note: "인쇄 및 공유용", primary: true },
-      { value: "png", label: "PNG 300DPI", note: "포토프린터·이미지 인쇄용" },
-      { value: "svg", label: "SVG", note: "벡터 편집용" },
-      { value: "project", label: "작업 파일", note: "나중에 다시 편집할 JSON" },
+      { value: "pdf", label: "PDF", note: uiText("인쇄 및 공유용", "For printing and sharing"), primary: true },
+      { value: "png", label: "PNG 300DPI", note: uiText("포토프린터·이미지 인쇄용", "For photo printers and image printing") },
+      { value: "svg", label: "SVG", note: uiText("벡터 편집용", "For vector editing") },
+      { value: "project", label: uiText("작업 파일", "Project file"), note: uiText("나중에 다시 편집할 JSON", "JSON that can be edited later") },
     ],
   });
   if (choice === "pdf") await downloadPdf();
@@ -1552,12 +1692,17 @@ async function showMiniDiscImportError(result) {
   const notConnected = result?.code === "not-connected";
   await showAppDialog({
     icon: "!",
-    title: notConnected ? "먼저 MiniDisc에 연결해 주세요" : "곡 목록을 가져오지 못했습니다",
-    message: result?.message || "MiniDisc 곡 목록을 가져오지 못했습니다.",
+    title: notConnected
+      ? uiText("먼저 MiniDisc에 연결해 주세요", "Connect to a MiniDisc first")
+      : uiText("곡 목록을 가져오지 못했습니다", "Could not import the track list"),
+    message: result?.message || uiText("MiniDisc 곡 목록을 가져오지 못했습니다.", "Could not import the MiniDisc track list."),
     detail: notConnected
-      ? "메인 앱에서 NetMD 또는 Hi-MD를 선택하고, 곡 목록이 모두 표시된 뒤 다시 눌러 주세요."
-      : "기기와 미디어 상태를 확인한 뒤 다시 시도해 주세요.",
-    actions: [{ value: "close", label: "확인", primary: true, wide: true }],
+      ? uiText(
+        "메인 앱에서 NetMD 또는 Hi-MD를 선택하고, 곡 목록이 모두 표시된 뒤 다시 눌러 주세요.",
+        "Select NetMD or Hi-MD in the main app, wait for the full track list to appear, and try again.",
+      )
+      : uiText("기기와 미디어 상태를 확인한 뒤 다시 시도해 주세요.", "Check the device and media, then try again."),
+    actions: [{ value: "close", label: uiText("확인", "OK"), primary: true, wide: true }],
   });
 }
 
@@ -1584,8 +1729,8 @@ async function applyMiniDiscResult(result) {
   saveSelectedLabel();
   const commonAlbum = commonTrackValue(result.tracks, "album");
   const commonArtist = commonTrackValue(result.tracks, "artist");
-  const album = result.discTitle || commonAlbum || "제목 없는 디스크";
-  const tracks = result.tracks.map((track, index) => `${String(index + 1).padStart(2, "0")} ${track.title || "제목 없음"}`);
+  const album = result.discTitle || commonAlbum || uiText("제목 없는 디스크", "Untitled disc");
+  const tracks = result.tracks.map((track, index) => `${String(index + 1).padStart(2, "0")} ${track.title || uiText("제목 없음", "Untitled")}`);
   const fingerprint = discFingerprint(result);
   // Import always targets the label the user explicitly selected. Matching a
   // previously imported disc must not silently jump back to another label.
@@ -1602,9 +1747,12 @@ async function applyMiniDiscResult(result) {
   renderSheet();
   await showAppDialog({
     icon: "✓",
-    title: "MD 목록 가져오기 완료!",
-    message: `${result.mode === "himd" ? "Hi-MD" : "NetMD"}에서 ${result.tracks.length}곡을 현재 라벨에 적용했습니다.`,
-    actions: [{ value: "close", label: "확인", primary: true, wide: true }],
+    title: uiText("MD 목록 가져오기 완료!", "MD track list imported!"),
+    message: uiText(
+      `${result.mode === "himd" ? "Hi-MD" : "NetMD"}에서 ${result.tracks.length}곡을 현재 라벨에 적용했습니다.`,
+      `Applied ${result.tracks.length} tracks from ${result.mode === "himd" ? "Hi-MD" : "NetMD"} to the current label.`,
+    ),
+    actions: [{ value: "close", label: uiText("확인", "OK"), primary: true, wide: true }],
   });
 }
 
@@ -1612,12 +1760,17 @@ async function importMiniDiscTracks() {
   const button = document.getElementById("import-md-tracks");
   const previousText = button.textContent;
   button.disabled = true;
-  button.textContent = "연결된 MD 확인 중...";
+  button.textContent = uiText("연결된 MD 확인 중...", "Checking connected MD...");
   try {
     saveSelectedLabel();
     await window.mdLabelMaker?.saveDraft?.(projectData());
     if (!window.mdLabelMaker?.readDisc) {
-      await showMiniDiscImportError({ message: "현재 실행본에서는 MD 곡 목록 가져오기를 사용할 수 없습니다. 프로그램을 갱신한 뒤 다시 시도해 주세요." });
+      await showMiniDiscImportError({
+        message: uiText(
+          "현재 실행본에서는 MD 곡 목록 가져오기를 사용할 수 없습니다. 프로그램을 갱신한 뒤 다시 시도해 주세요.",
+          "MD track-list import is unavailable in this build. Update the app and try again.",
+        ),
+      });
       return;
     }
     const result = await window.mdLabelMaker.readDisc();
@@ -1628,7 +1781,12 @@ async function importMiniDiscTracks() {
     await applyMiniDiscResult(result);
   } catch (error) {
     console.error(error);
-    await showMiniDiscImportError({ message: `MiniDisc 곡 목록을 가져오지 못했습니다. (${error?.message || error})` });
+    await showMiniDiscImportError({
+      message: uiText(
+        `MiniDisc 곡 목록을 가져오지 못했습니다. (${error?.message || error})`,
+        `Could not import the MiniDisc track list. (${error?.message || error})`,
+      ),
+    });
   } finally {
     button.disabled = false;
     button.textContent = previousText;
@@ -1674,7 +1832,7 @@ async function saveAutoDraftNow() {
   try {
     await window.mdLabelMaker.saveDraft(projectData());
   } catch (error) {
-    console.warn("라벨 작업 자동 저장 실패:", error);
+    console.warn(uiText("라벨 작업 자동 저장 실패:", "Label project auto-save failed:"), error);
   }
 }
 
@@ -1685,7 +1843,9 @@ function scheduleAutoSaveDraft() {
 }
 
 function applyProjectData(project) {
-  if (!Array.isArray(project?.labels) || !project.labels.length) throw new Error("라벨 정보가 없는 작업 파일입니다.");
+  if (!Array.isArray(project?.labels) || !project.labels.length) {
+    throw new Error(uiText("라벨 정보가 없는 작업 파일입니다.", "This project file contains no label data."));
+  }
 
   state.labels = project.labels.map((labelConfig, index) => normalizeProjectLabel(labelConfig, index, project.logo));
   state.selectedIndex = Math.min(Math.max(Number(project.sheet?.selectedIndex) || 0, 0), state.labels.length - 1);
@@ -1719,7 +1879,7 @@ async function restoreAutoDraft() {
     applyProjectData(project);
     return true;
   } catch (error) {
-    console.warn("라벨 작업 자동 복구 실패:", error);
+    console.warn(uiText("라벨 작업 자동 복구 실패:", "Label project auto-restore failed:"), error);
     return false;
   }
 }
@@ -1756,7 +1916,7 @@ async function loadProjectFile(event) {
     applyProjectData(project);
   } catch (error) {
     console.error(error);
-    window.alert("작업 파일을 불러오지 못했습니다.");
+    window.alert(uiText("작업 파일을 불러오지 못했습니다.", "Could not load the project file."));
   }
 }
 
@@ -1785,7 +1945,7 @@ sheetHost.addEventListener("keydown", (event) => {
 document.getElementById("add-label").addEventListener("click", () => {
   saveSelectedLabel();
   state.labels.push(createLabel({
-    album: `라벨 ${state.labels.length + 1}`,
+    album: uiText(`라벨 ${state.labels.length + 1}`, `Label ${state.labels.length + 1}`),
     artist: "",
     year: "",
     previewIndex: state.labels.length % previewArtwork.length,

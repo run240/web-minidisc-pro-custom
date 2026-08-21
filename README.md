@@ -1,27 +1,67 @@
-# Web MiniDisc Pro — Windows Custom + Intel macOS Build
+# Web MiniDisc Pro Custom
 
-An unofficial, non-commercial Windows and Intel macOS build of
+Unofficial, non-commercial Windows and Intel macOS builds of
 [ElectronWMD](https://github.com/asivery/ElectronWMD) and
 [Web MiniDisc Pro](https://github.com/asivery/webminidisc), focused on
-NetMD/Hi-MD device support and an integrated WinUSB installation flow.
+NetMD/Hi-MD device support, platform-specific improvements, and an integrated
+WinUSB installation flow on Windows.
 
 > This repository is not an official release of ElectronWMD, Web MiniDisc Pro,
 > Sony, or MiniDisc.wiki. Back up important recordings before testing.
 
+## Why this project exists
+
+This project was created for MiniDisc users who find Hi-MD connection and
+audio transfer difficult or unreliable in browser-based environments and who
+prefer not to depend on the discontinued SonicStage software. Its goal is to
+provide a practical desktop workflow for connecting devices, transferring
+personally owned audio, editing metadata, and managing NetMD and Hi-MD media on
+Windows and macOS.
+
+On macOS, some Sony Hi-MD devices cannot expose the required USB interface
+through the normal browser or libusb path because macOS claims their storage
+interface. The Intel macOS build adds a native USB helper and, for supported
+firmware, a temporary RAM patch that makes practical Hi-MD access possible
+without depending on SonicStage. The patch is volatile and disappears when the
+device is fully powered off.
+
+이 프로젝트는 브라우저 기반 환경에서 운영체제와 기기에 따라 Hi-MD 연결과
+음악 전송이 어렵거나 안정적이지 않고, 더 이상 유지보수되지 않는 SonicStage에
+의존하고 싶지 않은 MiniDisc 사용자를 위해 시작되었습니다. Windows와 macOS에서
+기기를 연결하고, 사용자가 소유한 음원을 전송하며, 제목을 편집하고 NetMD 및
+Hi-MD 미디어를 관리할 수 있는 실용적인 데스크톱 환경을 제공하는 것이 목표입니다.
+
+macOS에서는 일부 Sony Hi-MD 기기의 저장장치 인터페이스를 운영체제가 점유하여
+일반적인 브라우저 또는 libusb 방식으로 필요한 USB 인터페이스에 접근하기 어렵습니다.
+Intel macOS 빌드는 이를 위해 네이티브 USB 도우미와 지원되는 펌웨어용 임시 RAM
+패치를 추가하여 SonicStage 없이도 Hi-MD를 실용적으로 사용할 수 있게 했습니다.
+RAM 패치는 휘발성이므로 기기의 전원이 완전히 꺼지면 사라집니다.
+
 ## Status
 
-The source and GitHub Actions build pipeline are public. Web MiniDisc Pro 1.5.4 — Windows Custom R7 is
-available from [GitHub Releases](https://github.com/run240/web-minidisc-pro-windows-custom/releases)
+The source and GitHub Actions build pipeline are public. Web MiniDisc Pro 1.5.4
+— Windows Custom R7 is available from the
+[Windows Custom R7 release](https://github.com/run240/web-minidisc-pro-custom/releases/tag/windows-v1.5.4-r7)
 as a portable x64 ZIP. The current portable build is unsigned; open-source
 code-signing is not currently active. A SignPath-compatible workflow is
 included for possible future use, but no signing certificate has been issued
 to this project.
 
 The tested Intel macOS (`x64`) v12 DMG is available from the
-[Intel macOS Hi-MD v12 release](https://github.com/run240/web-minidisc-pro-windows-custom/releases/tag/macos-intel-himd-v12).
+[Intel macOS Hi-MD v12 release](https://github.com/run240/web-minidisc-pro-custom/releases/tag/macos-intel-himd-v12).
 It supports NetMD and Hi-MD through the native macOS USB stack, including a
 volatile RAM-patch path for Sony Hi-MD devices whose normal storage interface is
 claimed by macOS. Apple Silicon is not currently packaged or supported.
+
+## Windows Custom 안내
+
+1. 위 Windows Custom R7 릴리스에서 x64 ZIP과 SHA-256 파일을 받습니다.
+2. 해시를 확인한 뒤 ZIP을 새 폴더에 완전히 압축 해제합니다.
+3. `Web MiniDisc Pro.exe`를 실행합니다.
+4. 기기를 연결하고 NetMD 또는 Hi-MD 모드를 선택합니다.
+
+Windows용 WinUSB 설치 과정, 자체 서명 테스트 드라이버 인증서, 변경 취소
+방법은 [Windows 빌드 및 설치 안내](docs/WINDOWS.md)를 먼저 확인해 주세요.
 
 ## Intel macOS Hi-MD v12 안내
 
@@ -65,7 +105,7 @@ RAM 패치는 기기 전원이 완전히 꺼지면 사라지지만 미디어의 
 
 ## Main changes
 
-- Integrated WinUSB helper based on libwdi 1.5.1
+- Integrated WinUSB installation flow based on a reviewed driver package derived from libwdi 1.5.1
 - NetMD and Hi-MD connection and mode diagnostics
 - Automatic RH1 NetMD/Hi-MD USB interface switching without replugging
 - Automatic mode reconnection after the application restarts
@@ -120,9 +160,9 @@ troubleshooting feedback across several releases.
 
 - `src/`: ElectronWMD source
 - `webminidisc/`: pinned Web MiniDisc Pro submodule
-- `third_party/libwdi/`: complete corresponding source for the WinUSB helper
+- `third_party/libwdi/`: complete libwdi source used as the basis for the WinUSB driver package
 - `custom-overrides/`: exact Windows Custom R7 generated-file modifications and label-maker assets
-- `.github/workflows/build-signpath.yml`: Windows build and prepared SignPath submission
+- `.github/workflows/build-signpath.yml`: Windows build, release packaging, and optional SignPath submission
 - `signpath-artifact-configuration.xml`: Authenticode signing scope
 
 Base revisions:
