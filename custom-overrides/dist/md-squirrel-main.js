@@ -6,6 +6,8 @@ const fs = require("fs");
 const fsp = fs.promises;
 const { spawn } = require("child_process");
 const fetch = require("node-fetch");
+const ElectronStoreModule = require("electron-store");
+const ElectronStore = ElectronStoreModule.default || ElectronStoreModule;
 
 const AUDIO_EXTENSIONS = new Set([
     ".mp3", ".flac", ".m4a", ".mp4", ".aac", ".ogg", ".opus", ".wav", ".wma",
@@ -15,6 +17,20 @@ const MUSICBRAINZ_USER_AGENT = "MD-Squirrel/0.1.0 (https://github.com/run240/web
 let lastMusicBrainzRequestAt = 0;
 let mdLabelMakerWindow = null;
 let preserveLabelDraftOnClose = false;
+
+function getUILanguage() {
+    try {
+        const configured = new ElectronStore().get("uiLanguage", "auto");
+        if (configured === "ko" || configured === "en")
+            return configured;
+    }
+    catch (_) { }
+    return /^ko(?:-|$)/i.test(app.getLocale()) ? "ko" : "en";
+}
+
+function uiText(korean, english) {
+    return getUILanguage() === "ko" ? korean : english;
+}
 
 function labelRelaunchStatePath() {
     return path.join(app.getPath("userData"), "minidisc-label-maker-relaunch.json");
@@ -61,7 +77,7 @@ function sanitizeFilename(value) {
         .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
         .replace(/[. ]+$/g, "")
         .trim();
-    return sanitized || "제목 없음";
+    return sanitized || uiText("제목 없음", "Untitled");
 }
 
 function compactArtists(artists) {
@@ -88,7 +104,7 @@ async function listAudioFiles(folder, depth = 0) {
             files.push(...await listAudioFiles(fullPath, depth + 1));
         }
         if (files.length > 5000)
-            throw new Error("음원이 5,000개를 넘어 앨범 단위의 폴더를 선택해 주세요.");
+            throw new Error(uiText("음원이 5,000개를 넘어 앨범 단위의 폴더를 선택해 주세요.", "More than 5,000 audio files were found. Choose an album-level folder."));
     }
     return files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 }
@@ -176,11 +192,11 @@ async function fetchMusicBrainzJson(url) {
         if (response.ok)
             return response.json();
         if (![429, 502, 503, 504].includes(response.status) || attempt === 2)
-            throw new Error(`MusicBrainz 요청 실패 (${response.status})`);
+            throw new Error(uiText(`MusicBrainz 요청 실패 (${response.status})`, `MusicBrainz request failed (${response.status})`));
         // MusicBrainz가 잠시 혼잡할 때 첫 클릭만 실패하지 않도록 짧게 기다렸다 재시도한다.
         await wait(1200 * (attempt + 1));
     }
-    throw new Error("MusicBrainz 요청에 응답이 없습니다.");
+    throw new Error(uiText("MusicBrainz 요청에 응답이 없습니다.", "MusicBrainz did not respond."));
 }
 
 async function findCanonicalArtistNames(artist) {
@@ -204,7 +220,7 @@ async function searchReleases({ artist, album }) {
     const artistCandidates = buildArtistSearchCandidates(artist);
     const albumName = String(album || "").trim();
     if (!artistCandidates.length && !albumName)
-        throw new Error("아티스트나 앨범 정보가 필요합니다.");
+        throw new Error(uiText("아티스트나 앨범 정보가 필요합니다.", "Artist or album information is required."));
 
     const searches = artistCandidates.map(candidate => {
         const parts = [`artist:"${escapeMusicBrainzQuery(candidate)}"`];
@@ -299,10 +315,10 @@ async function fetchITunesJson(url) {
         if (response.ok)
             return response.json();
         if (attempt === 1)
-            throw new Error(`Apple 음악 검색 실패 (${response.status})`);
+            throw new Error(uiText(`Apple 음악 검색 실패 (${response.status})`, `Apple Music search failed (${response.status})`));
         await wait(700);
     }
-    throw new Error("Apple 음악 검색에 응답이 없습니다.");
+    throw new Error(uiText("Apple 음악 검색에 응답이 없습니다.", "Apple Music search did not respond."));
 }
 
 function hasLatinTitle(value) {
@@ -356,7 +372,7 @@ async function findITunesArtistName(artist) {
 
 async function searchITunesTracks(tracks) {
     if (!Array.isArray(tracks) || !tracks.length)
-        throw new Error("검색할 곡이 없습니다.");
+        throw new Error(uiText("검색할 곡이 없습니다.", "There are no tracks to search."));
     const matches = [];
     for (let index = 0; index < tracks.length; index += 1) {
         const track = tracks[index];
@@ -486,16 +502,16 @@ function isPathInside(parent, candidate) {
 
 async function createEnglishCopies(window, { sourceFolder, tracks }) {
     if (!sourceFolder || !Array.isArray(tracks) || tracks.length === 0)
-        throw new Error("복사할 음원이 없습니다.");
+        throw new Error(uiText("복사할 음원이 없습니다.", "There are no audio files to copy."));
     const outputFolder = await uniqueOutputFolder(sourceFolder);
     const results = [];
     for (let index = 0; index < tracks.length; index += 1) {
         const track = tracks[index];
         if (!isPathInside(sourceFolder, track.sourcePath))
-            throw new Error("선택한 폴더 밖의 파일은 처리할 수 없습니다.");
+            throw new Error(uiText("선택한 폴더 밖의 파일은 처리할 수 없습니다.", "Files outside the selected folder cannot be processed."));
         const extension = path.extname(track.sourcePath).toLowerCase();
         if (!AUDIO_EXTENSIONS.has(extension))
-            throw new Error(`지원하지 않는 음원 형식입니다: ${extension}`);
+            throw new Error(uiText(`지원하지 않는 음원 형식입니다: ${extension}`, `Unsupported audio format: ${extension}`));
         const number = String(track.trackNumber || index + 1).padStart(2, "0");
         const baseName = sanitizeFilename(`${number} - ${track.englishTitle || track.title}`);
         const outputPath = await uniqueOutputPath(outputFolder, baseName, extension);
@@ -522,7 +538,7 @@ async function createEnglishCopies(window, { sourceFolder, tracks }) {
         catch (error) {
             await fsp.rm(temporaryPath, { force: true }).catch(() => { });
             await fsp.copyFile(track.sourcePath, outputPath);
-            warning = `태그 변경 실패, 파일명만 변경됨: ${error.message}`;
+            warning = uiText(`태그 변경 실패, 파일명만 변경됨: ${error.message}`, `Tag update failed; only the filename was changed: ${error.message}`);
         }
         results.push({ filename: path.basename(outputPath), tagsUpdated, warning });
         window.webContents.send("mdSquirrelGenerateProgress", {
@@ -598,7 +614,7 @@ function setupMDSquirrelIPC(window) {
             show: false,
             autoHideMenuBar: true,
             backgroundColor: "#111014",
-            title: "MiniDisc 라벨 만들기",
+            title: uiText("MiniDisc 라벨 만들기", "MiniDisc Label Maker"),
             icon: path.join(__dirname, "..", "renderer", "assets", "md-label-maker.png"),
             webPreferences: {
                 preload: path.join(__dirname, "md-label-maker-preload.js"),
@@ -635,7 +651,9 @@ function setupMDSquirrelIPC(window) {
                 void shell.openExternal(url);
             return { action: "deny" };
         });
-        await mdLabelMakerWindow.loadFile(path.join(__dirname, "..", "renderer", "md-label-maker", "index.html"));
+        await mdLabelMakerWindow.loadFile(path.join(__dirname, "..", "renderer", "md-label-maker", "index.html"), {
+            query: { lang: getUILanguage() },
+        });
         return true;
     };
     ipcMain.handle("mdLabelMakerOpen", openLabelMaker);
@@ -646,7 +664,7 @@ function setupMDSquirrelIPC(window) {
     }
     ipcMain.handle("mdSquirrelSelectFolder", async () => {
         const result = await dialog.showOpenDialog(window, {
-            title: "MD Squirrel - 음원 폴더 선택",
+            title: uiText("MD Squirrel - 음원 폴더 선택", "MD Squirrel - Choose audio folder"),
             properties: ["openDirectory"],
         });
         return result.canceled ? null : result.filePaths[0];
@@ -658,9 +676,9 @@ function setupMDSquirrelIPC(window) {
     ipcMain.handle("mdSquirrelOpenWebSearch", (_, payload) => {
         const title = String(payload?.title || "").trim().slice(0, 300);
         const artist = String(payload?.artist || "").trim().slice(0, 300);
-        const query = [title, artist, "영어 제목"].filter(Boolean).join(" ");
+        const query = [title, artist, uiText("영어 제목", "English title")].filter(Boolean).join(" ");
         if (!query)
-            throw new Error("검색할 제목이나 아티스트가 없습니다.");
+            throw new Error(uiText("검색할 제목이나 아티스트가 없습니다.", "Enter a title or artist to search."));
         return shell.openExternal(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
     });
     ipcMain.handle("mdSquirrelCreateCopies", (_, payload) => createEnglishCopies(window, payload));

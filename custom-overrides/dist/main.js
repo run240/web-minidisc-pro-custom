@@ -356,7 +356,7 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                 if (((_a = allArgs[i]) === null || _a === void 0 ? void 0 : _a.interprocessType) === 'stagedHiMDUpload') {
                     const staged = stagedHiMDUploads.get(allArgs[i].uploadId);
                     if (!staged)
-                        throw new Error('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.');
+                        throw new Error(uiText('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.', 'Prepared Hi-MD audio data was not found.'));
                     stagedHiMDUploads.delete(allArgs[i].uploadId);
                     const combined = fs_1.default.readFileSync(staged.path);
                     fs_1.default.unlinkSync(staged.path);
@@ -400,7 +400,7 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                     (targetObject.atdata !== null && targetObject.atdata !== undefined ||
                         targetObject.currentSession !== undefined ||
                         [...targetObject.__activeIpcMethods].some(method => ['prepareUpload', 'upload', 'finalizeUpload', 'download'].includes(method)))) {
-                    const error = new Error('전송 중에는 디스크를 다시 검색할 수 없습니다. 전송이 끝난 뒤 다시 시도해 주세요.');
+                    const error = new Error(uiText('전송 중에는 디스크를 다시 검색할 수 없습니다. 전송이 끝난 뒤 다시 시도해 주세요.', 'The disc cannot be rescanned during a transfer. Try again after the transfer finishes.'));
                     error.code = 'ACTIVE_TRANSFER';
                     throw error;
                 }
@@ -414,18 +414,18 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                     const hiMDWipe = n === 'wipeDisc';
                     const hiMDTimeout = n === 'applyEditBatch' || hiMDWipe ? 60000 : n === 'listContent' ? 15000 : 12000;
                     result = await withTimeout(operation, hiMDTimeout, hiMDWipe
-                        ? 'Hi-MD 디스크 삭제는 기기에 반영됐지만 완료 응답을 받지 못했습니다.'
+                        ? uiText('Hi-MD 디스크 삭제는 기기에 반영됐지만 완료 응답을 받지 못했습니다.', 'The Hi-MD disc wipe may have been applied, but no completion response was received.')
                         : n === 'applyEditBatch'
-                            ? 'Hi-MD 편집 적용과 검증 시간이 초과되었습니다. 장치를 분리하지 말고 잠시 기다린 뒤, 앱이 복구되지 않으면 USB를 다시 연결해 주세요.'
-                            : 'Hi-MD 파일시스템을 찾지 못했습니다. 일반 NetMD 포맷 미디어라면 USB 인터페이스가 Hi-MD 모드에 남아 있는 상태일 수 있습니다.', hiMDWipe ? 'HIMD_WIPE_TIMEOUT' : 'HIMD_TIMEOUT');
+                            ? uiText('Hi-MD 편집 적용과 검증 시간이 초과되었습니다. 장치를 분리하지 말고 잠시 기다린 뒤, 앱이 복구되지 않으면 USB를 다시 연결해 주세요.', 'Applying and verifying Hi-MD edits timed out. Keep the recorder connected and wait briefly; reconnect USB if the app does not recover.')
+                            : uiText('Hi-MD 파일시스템을 찾지 못했습니다. 일반 NetMD 포맷 미디어라면 USB 인터페이스가 Hi-MD 모드에 남아 있는 상태일 수 있습니다.', 'No Hi-MD filesystem was found. If this is a standard NetMD-formatted disc, the USB interface may still be in Hi-MD mode.'), hiMDWipe ? 'HIMD_WIPE_TIMEOUT' : 'HIMD_TIMEOUT');
                 }
                 else if (shouldTimeOutNetMD) {
                     const netMDApplyEdit = n === 'applyEditBatch';
                     result = await withTimeout(operation, netMDApplyEdit ? 60000 : isForcedTOCReload ? 20000 : 15000, netMDApplyEdit
-                        ? 'NetMD 편집 저장 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 실제 제목을 확인해 주세요.'
+                        ? uiText('NetMD 편집 저장 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 실제 제목을 확인해 주세요.', 'Saving NetMD edits timed out. Reconnect the USB cable, then verify the titles stored on the disc.')
                         : isForcedTOCReload
-                            ? '디스크 다시 검색 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 재시도해 주세요.'
-                            : 'NetMD 기기 연결 응답 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 재시도해 주세요.', netMDApplyEdit ? 'NETMD_EDIT_TIMEOUT' : isForcedTOCReload ? 'NETMD_RESCAN_TIMEOUT' : 'NETMD_TIMEOUT');
+                            ? uiText('디스크 다시 검색 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 재시도해 주세요.', 'Rescanning the disc timed out. Reconnect the USB cable and try again.')
+                            : uiText('NetMD 기기 연결 응답 시간이 초과되었습니다. USB 케이블을 다시 연결한 뒤 재시도해 주세요.', 'The NetMD recorder did not respond in time. Reconnect the USB cable and try again.'), netMDApplyEdit ? 'NETMD_EDIT_TIMEOUT' : isForcedTOCReload ? 'NETMD_RESCAN_TIMEOUT' : 'NETMD_TIMEOUT');
                 }
                 else {
                     result = await operation;
@@ -460,7 +460,7 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                 if (isHiMDMassStorageDesync && !hiMDRecoveryPending) {
                     hiMDRecoveryPending = true;
                     try {
-                        await withTimeout(targetObject.finalize(), 4000, 'Hi-MD 연결 정리 시간 초과');
+                        await withTimeout(targetObject.finalize(), 4000, uiText('Hi-MD 연결 정리 시간 초과', 'Timed out while closing the Hi-MD connection.'));
                     }
                     catch (cleanupError) {
                         console.log('Hi-MD mass-storage resync cleanup failed:', cleanupError);
@@ -473,15 +473,15 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                 if (err?.code === 'HIMD_WIPE_TIMEOUT' && !hiMDRecoveryPending) {
                     hiMDRecoveryPending = true;
                     try {
-                        await withTimeout(targetObject.finalize(), 5000, 'Hi-MD 삭제 연결 정리 시간 초과');
+                        await withTimeout(targetObject.finalize(), 5000, uiText('Hi-MD 삭제 연결 정리 시간 초과', 'Timed out while closing the Hi-MD wipe connection.'));
                     }
                     catch (cleanupError) {
                         console.log('Timed-out Hi-MD wipe cleanup failed:', cleanupError);
                     }
                     await showRendererWarning(window, {
-                        title: 'Hi-MD 디스크 삭제 완료 확인',
-                        message: '삭제 명령은 기기에 전달됐지만 완료 응답을 받지 못했습니다.',
-                        detail: '디스크 삭제는 이미 반영됐을 수 있습니다. 확인을 누른 뒤 기기를 다시 연결하여 디스크 내용을 확인해 주세요. 확인하기 전에는 삭제를 다시 실행하지 마세요.',
+                        title: uiText('Hi-MD 디스크 삭제 완료 확인', 'Confirm Hi-MD disc wipe'),
+                        message: uiText('삭제 명령은 기기에 전달됐지만 완료 응답을 받지 못했습니다.', 'The wipe command reached the recorder, but no completion response was received.'),
+                        detail: uiText('디스크 삭제는 이미 반영됐을 수 있습니다. 확인을 누른 뒤 기기를 다시 연결하여 디스크 내용을 확인해 주세요. 확인하기 전에는 삭제를 다시 실행하지 마세요.', 'The disc may already have been wiped. Select OK, reconnect the recorder, and check the disc contents. Do not run the wipe again before checking.'),
                     });
                     if (!window.isDestroyed())
                         window.webContents.reload();
@@ -494,7 +494,7 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                         recentHiMDMediaMismatchAt > 0 &&
                         Date.now() - recentHiMDMediaMismatchAt < 10 * 60 * 1000;
                     try {
-                        await withTimeout(targetObject.finalize(), 4000, 'Hi-MD 연결 정리 시간 초과');
+                        await withTimeout(targetObject.finalize(), 4000, uiText('Hi-MD 연결 정리 시간 초과', 'Timed out while closing the Hi-MD connection.'));
                     }
                     catch (cleanupError) {
                         console.log('Timed-out Hi-MD connection cleanup failed:', cleanupError);
@@ -503,9 +503,9 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                         appendDiagnosticLog('Hi-MD media refresh retry started', { method: n, at: Date.now() });
                         try {
                             await wait(1000);
-                            await withTimeout(targetObject.pair(), 10000, 'Hi-MD 미디어 재인식 준비 시간이 초과되었습니다.');
+                            await withTimeout(targetObject.pair(), 10000, uiText('Hi-MD 미디어 재인식 준비 시간이 초과되었습니다.', 'Preparing to detect the Hi-MD media again timed out.'));
                             const retryTimeout = n === 'listContent' ? 15000 : 12000;
-                            const retryResult = await withTimeout(Promise.resolve().then(() => targetObject[n](...allArgs)), retryTimeout, '교체한 Hi-MD 미디어를 다시 인식하지 못했습니다.', 'HIMD_MEDIA_RETRY_TIMEOUT');
+                            const retryResult = await withTimeout(Promise.resolve().then(() => targetObject[n](...allArgs)), retryTimeout, uiText('교체한 Hi-MD 미디어를 다시 인식하지 못했습니다.', 'The replacement Hi-MD media could not be detected.'), 'HIMD_MEDIA_RETRY_TIMEOUT');
                             recentHiMDMediaMismatchAt = 0;
                             hiMDRecoveryPending = false;
                             appendDiagnosticLog('Hi-MD media refresh retry completed', { method: n, at: Date.now() });
@@ -514,7 +514,7 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                         catch (retryError) {
                             appendDiagnosticLog('Hi-MD media refresh retry failed', retryError);
                             try {
-                                await withTimeout(targetObject.finalize(), 4000, 'Hi-MD 재시도 연결 정리 시간 초과');
+                                await withTimeout(targetObject.finalize(), 4000, uiText('Hi-MD 재시도 연결 정리 시간 초과', 'Timed out while closing the retried Hi-MD connection.'));
                             }
                             catch (retryCleanupError) {
                                 console.log('Retried Hi-MD connection cleanup failed:', retryCleanupError);
@@ -523,11 +523,11 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                     }
                     recentHiMDMediaMismatchAt = Date.now();
                     await showRendererWarning(window, {
-                        title: 'Hi-MD 연결 시간이 초과되었습니다',
-                        message: '현재 미디어에서 Hi-MD 파일시스템을 찾지 못했습니다.',
-                        detail: '일반 MD가 들어 있다면 NetMD를 선택하세요. 이 디스크를 완전히 지우고 Hi-MD 형식으로 바꾸려는 경우에만 “Hi-MD로 포맷”을 누르세요.',
+                        title: uiText('Hi-MD 연결 시간이 초과되었습니다', 'Hi-MD connection timed out'),
+                        message: uiText('현재 미디어에서 Hi-MD 파일시스템을 찾지 못했습니다.', 'No Hi-MD filesystem was found on the current media.'),
+                        detail: uiText('일반 MD가 들어 있다면 NetMD를 선택하세요. 이 디스크를 완전히 지우고 Hi-MD 형식으로 바꾸려는 경우에만 “Hi-MD로 포맷”을 누르세요.', 'If a standard MiniDisc is inserted, select NetMD. Select “Format as Hi-MD” only if you intend to erase the disc completely and convert it to Hi-MD.'),
                         formatTarget: 'himd',
-                        formatLabel: 'Hi-MD로 포맷',
+                        formatLabel: uiText('Hi-MD로 포맷', 'Format as Hi-MD'),
                     });
                     if (!window.isDestroyed())
                         window.webContents.reload();
@@ -540,17 +540,17 @@ function traverseObject(window, objectFactory, namespace, recovery = {}) {
                         const stalledInterface = targetObject.netmdInterface;
                         targetObject.netmdInterface = undefined;
                         targetObject.dropCachedContentList?.();
-                        await withTimeout(Promise.resolve(stalledInterface?.netMd?.finalize()), 3000, 'NetMD 연결 정리 시간 초과');
+                        await withTimeout(Promise.resolve(stalledInterface?.netMd?.finalize()), 3000, uiText('NetMD 연결 정리 시간 초과', 'Timed out while closing the NetMD connection.'));
                     }
                     catch (cleanupError) {
                         console.log('Timed-out NetMD connection cleanup failed:', cleanupError);
                     }
                     await showRendererWarning(window, {
-                        title: 'NetMD 연결 시간이 초과되었습니다',
-                        message: '현재 미디어를 일반 MD(NetMD) 형식으로 읽지 못했습니다.',
-                        detail: 'Hi-MD 포맷 디스크라면 Hi-MD를 선택하세요. 이 디스크를 완전히 지우고 일반 MD 형식으로 바꾸려는 경우에만 “일반 MD로 포맷”을 누르세요. 1GB Hi-MD 전용 미디어는 일반 MD로 변환할 수 없습니다.',
+                        title: uiText('NetMD 연결 시간이 초과되었습니다', 'NetMD connection timed out'),
+                        message: uiText('현재 미디어를 일반 MD(NetMD) 형식으로 읽지 못했습니다.', 'The current media could not be read as a standard MiniDisc (NetMD).'),
+                        detail: uiText('Hi-MD 포맷 디스크라면 Hi-MD를 선택하세요. 이 디스크를 완전히 지우고 일반 MD 형식으로 바꾸려는 경우에만 “일반 MD로 포맷”을 누르세요. 1GB Hi-MD 전용 미디어는 일반 MD로 변환할 수 없습니다.', 'If this is a Hi-MD-formatted disc, select Hi-MD. Select “Format as standard MD” only to erase and convert the disc. Dedicated 1GB Hi-MD media cannot be converted to standard MD.'),
                         formatTarget: 'netmd',
-                        formatLabel: '일반 MD로 포맷',
+                        formatLabel: uiText('일반 MD로 포맷', 'Format as standard MD'),
                     });
                     if (!window.isDestroyed())
                         window.webContents.reload();
@@ -1415,7 +1415,7 @@ async function integrate(window) {
         if (process.platform === 'win32' && hiMDDevice.driverStatus !== 'winusb') {
             return {
                 ok: false,
-                message: `${hiMDDevice.modelHint}의 현재 Hi-MD 인터페이스에 WinUSB를 먼저 설치해 주세요.`,
+                message: uiText(`${hiMDDevice.modelHint}의 현재 Hi-MD 인터페이스에 WinUSB를 먼저 설치해 주세요.`, `Install WinUSB on the current Hi-MD interface of ${hiMDDevice.modelHint} first.`),
             };
         }
         const confirmation = await showRendererWarning(window, {
@@ -1446,26 +1446,26 @@ async function integrate(window) {
         webusb.setPreferredDevice(hiMDDevice);
         try {
             if (himdService.atdata !== null) {
-                return { ok: false, message: 'Hi-MD 전송 작업이 진행 중입니다. 작업을 마친 뒤 다시 시도해 주세요.' };
+                return { ok: false, message: uiText('Hi-MD 전송 작업이 진행 중입니다. 작업을 마친 뒤 다시 시도해 주세요.', 'A Hi-MD transfer is in progress. Try again after it finishes.') };
             }
             if (himdService.fsDriver || himdService.himd) {
                 try {
-                    await withTimeout(himdService.finalize(), 4000, '이전 Hi-MD 연결 정리 시간이 초과되었습니다.');
+                    await withTimeout(himdService.finalize(), 4000, uiText('이전 Hi-MD 연결 정리 시간이 초과되었습니다.', 'Timed out while closing the previous Hi-MD connection.'));
                 }
                 catch (cleanupError) {
                     console.log('Previous Hi-MD format connection cleanup failed:', cleanupError);
                 }
             }
-            const paired = await withTimeout(himdService.pair(), 10000, `${hiMDDevice.modelHint}의 Hi-MD USB 인터페이스를 여는 시간이 초과되었습니다.`);
+            const paired = await withTimeout(himdService.pair(), 10000, uiText(`${hiMDDevice.modelHint}의 Hi-MD USB 인터페이스를 여는 시간이 초과되었습니다.`, `Timed out while opening the Hi-MD USB interface on ${hiMDDevice.modelHint}.`));
             if (!paired) {
-                return { ok: false, message: `${hiMDDevice.modelHint}의 Hi-MD 인터페이스를 열지 못했습니다.` };
+                return { ok: false, message: uiText(`${hiMDDevice.modelHint}의 Hi-MD 인터페이스를 열지 못했습니다.`, `Could not open the Hi-MD interface on ${hiMDDevice.modelHint}.`) };
             }
-            await withTimeout(himdService.initHiMD(), 30000, 'Hi-MD 파일시스템을 읽는 시간이 초과되었습니다. 일반 MD가 들어 있다면 USB를 다시 연결해 주세요.', 'HIMD_TIMEOUT');
-            const capacity = await withTimeout(himdService.fsDriver.getTotalSpace(), 10000, '디스크 용량 확인 시간이 초과되었습니다.');
+            await withTimeout(himdService.initHiMD(), 30000, uiText('Hi-MD 파일시스템을 읽는 시간이 초과되었습니다. 일반 MD가 들어 있다면 USB를 다시 연결해 주세요.', 'Reading the Hi-MD filesystem timed out. If a standard MiniDisc is inserted, reconnect USB.'), 'HIMD_TIMEOUT');
+            const capacity = await withTimeout(himdService.fsDriver.getTotalSpace(), 10000, uiText('디스크 용량 확인 시간이 초과되었습니다.', 'Checking disc capacity timed out.'));
             if (capacity > 500000000) {
                 return {
                     ok: false,
-                    message: '1GB Hi-MD 전용 미디어는 일반 MD 형식으로 변환할 수 없습니다.',
+                    message: uiText('1GB Hi-MD 전용 미디어는 일반 MD 형식으로 변환할 수 없습니다.', 'Dedicated 1GB Hi-MD media cannot be converted to standard MiniDisc format.'),
                 };
             }
             const driver = himdService.fsDriver.driver;
@@ -1489,8 +1489,8 @@ async function integrate(window) {
                 switchRequested: true,
                 capacity,
                 message: switchError
-                    ? '디스크 초기화가 완료되었습니다. 장치가 자동 전환되지 않으면 USB를 한 번 다시 연결해 주세요.'
-                    : '디스크 초기화와 NetMD 인터페이스 전환을 요청했습니다.',
+                    ? uiText('디스크 초기화가 완료되었습니다. 장치가 자동 전환되지 않으면 USB를 한 번 다시 연결해 주세요.', 'Disc initialization is complete. If the recorder does not switch automatically, reconnect USB once.')
+                    : uiText('디스크 초기화와 NetMD 인터페이스 전환을 요청했습니다.', 'Disc initialization and switching to the NetMD interface were requested.'),
             };
         }
         catch (error) {
@@ -1498,7 +1498,7 @@ async function integrate(window) {
             return {
                 ok: false,
                 message: error?.code === 'HIMD_TIMEOUT'
-                    ? 'Hi-MD 파일시스템을 읽지 못했습니다. 디스크가 이미 일반 MD 형식일 수 있습니다. USB 케이블을 분리했다 다시 연결한 뒤 NetMD를 선택해 주세요.'
+                    ? uiText('Hi-MD 파일시스템을 읽지 못했습니다. 디스크가 이미 일반 MD 형식일 수 있습니다. USB 케이블을 분리했다 다시 연결한 뒤 NetMD를 선택해 주세요.', 'The Hi-MD filesystem could not be read. The disc may already be in standard MD format. Reconnect the USB cable, then select NetMD.')
                     : error instanceof Error ? error.message : String(error),
             };
         }
@@ -1565,12 +1565,12 @@ async function integrate(window) {
     electron_1.ipcMain.handle('appendHiMDUploadStage', (_event, uploadId, chunk) => {
         const staged = stagedHiMDUploads.get(uploadId);
         if (!staged)
-            throw new Error('Hi-MD 업로드 준비 세션이 만료되었습니다.');
+            throw new Error(uiText('Hi-MD 업로드 준비 세션이 만료되었습니다.', 'The prepared Hi-MD upload session has expired.'));
         const buffer = Buffer.from(chunk);
         fs_1.default.appendFileSync(staged.path, buffer);
         staged.received += buffer.byteLength;
         if (staged.received > staged.total)
-            throw new Error('Hi-MD 업로드 준비 데이터 크기가 올바르지 않습니다.');
+            throw new Error(uiText('Hi-MD 업로드 준비 데이터 크기가 올바르지 않습니다.', 'The prepared Hi-MD upload data has an invalid size.'));
         return staged.received;
     });
     const transferMethods = new Set(['prepareUpload', 'upload', 'finalizeUpload', 'download']);
@@ -1586,11 +1586,11 @@ async function integrate(window) {
     electron_1.ipcMain.removeHandler('mdLabelMakerReadDisc');
     electron_1.ipcMain.handle('mdLabelMakerReadDisc', async () => {
         if (rendererReportedTransferActive || hasActiveTransfer(service) || hasActiveTransfer(himdService)) {
-            return { ok: false, code: 'busy', message: '녹음이나 전송이 진행 중입니다. 작업이 끝난 뒤 다시 시도해 주세요.' };
+            return { ok: false, code: 'busy', message: uiText('녹음이나 전송이 진행 중입니다. 작업이 끝난 뒤 다시 시도해 주세요.', 'A recording or transfer is in progress. Try again after it finishes.') };
         }
         const discReadActive = service.__activeIpcMethods?.has('listContent') || himdService.__activeIpcMethods?.has('listContent');
         if (discReadActive) {
-            return { ok: false, code: 'busy', message: '메인 화면에서 MiniDisc 정보를 불러오는 중입니다. 목록이 표시된 뒤 다시 눌러 주세요.' };
+            return { ok: false, code: 'busy', message: uiText('메인 화면에서 MiniDisc 정보를 불러오는 중입니다. 목록이 표시된 뒤 다시 눌러 주세요.', 'MiniDisc information is loading on the main screen. Try again after the track list appears.') };
         }
         const mode = himdService.fsDriver && himdService.himd
             ? 'himd'
@@ -1598,13 +1598,13 @@ async function integrate(window) {
                 ? 'netmd'
                 : null;
         if (!mode) {
-            return { ok: false, code: 'not-connected', message: '메인 화면에서 먼저 NetMD 또는 Hi-MD로 연결하고, 곡 목록이 표시된 뒤 다시 눌러 주세요.' };
+            return { ok: false, code: 'not-connected', message: uiText('메인 화면에서 먼저 NetMD 또는 Hi-MD로 연결하고, 곡 목록이 표시된 뒤 다시 눌러 주세요.', 'Connect in NetMD or Hi-MD mode on the main screen first, then try again after the track list appears.') };
         }
         try {
             // Only copy the content of the connection already established by
             // the main screen. The label tool must never initiate a USB rescan
             // or mode switch of its own.
-            const disc = await withTimeout(mode === 'himd' ? himdService.listContent() : service.listContent(false), 6000, '연결된 MiniDisc 목록을 가져오는 시간이 초과되었습니다.', 'LABEL_DISC_READ_TIMEOUT');
+            const disc = await withTimeout(mode === 'himd' ? himdService.listContent() : service.listContent(false), 6000, uiText('연결된 MiniDisc 목록을 가져오는 시간이 초과되었습니다.', 'Reading the connected MiniDisc track list timed out.'), 'LABEL_DISC_READ_TIMEOUT');
             const tracks = (disc?.groups ?? [])
                 .flatMap(group => (group.tracks ?? []).map(track => ({
                 index: Number(track.index) || 0,
@@ -1616,7 +1616,7 @@ async function integrate(window) {
             })))
                 .sort((a, b) => a.index - b.index);
             if (!tracks.length) {
-                return { ok: false, code: 'empty-disc', message: '디스크는 인식했지만 가져올 곡이 없습니다.' };
+                return { ok: false, code: 'empty-disc', message: uiText('디스크는 인식했지만 가져올 곡이 없습니다.', 'The disc was detected, but it contains no tracks to import.') };
             }
             return {
                 ok: true,
@@ -1626,14 +1626,14 @@ async function integrate(window) {
             };
         }
         catch (error) {
-            const message = String(error?.message || error || '알 수 없는 오류');
+            const message = String(error?.message || error || uiText('알 수 없는 오류', 'Unknown error'));
             const noMedia = /no disc|no media|disc.*not|media.*not|rejected/i.test(message);
             return {
                 ok: false,
                 code: noMedia ? 'no-media' : 'read-failed',
                 message: noMedia
-                    ? '기기는 연결되어 있지만 MiniDisc 미디어를 찾지 못했습니다.'
-                    : `MiniDisc 곡 목록을 읽지 못했습니다. (${message})`,
+                    ? uiText('기기는 연결되어 있지만 MiniDisc 미디어를 찾지 못했습니다.', 'The recorder is connected, but no MiniDisc media was found.')
+                    : uiText(`MiniDisc 곡 목록을 읽지 못했습니다. (${message})`, `Could not read the MiniDisc track list. (${message})`),
             };
         }
     });
@@ -1643,12 +1643,12 @@ async function integrate(window) {
         closeConfirmationPending = true;
         try {
             const result = await showRendererWarning(window, {
-                title: '멈춘 전송 강제 종료',
-                message: '전송이 끝나지 않았습니다. 앱을 강제로 종료할까요?',
-                detail: '전송 중이던 곡은 손상되거나 사라질 수 있습니다. 앱이 닫힌 뒤에도 기기의 쓰기 표시가 계속되면 전원과 디스크는 그대로 두고 USB 케이블만 분리하세요.',
+                title: uiText('멈춘 전송 강제 종료', 'Force quit stalled transfer'),
+                message: uiText('전송이 끝나지 않았습니다. 앱을 강제로 종료할까요?', 'The transfer has not finished. Force quit the app?'),
+                detail: uiText('전송 중이던 곡은 손상되거나 사라질 수 있습니다. 앱이 닫힌 뒤에도 기기의 쓰기 표시가 계속되면 전원과 디스크는 그대로 두고 USB 케이블만 분리하세요.', 'The track being transferred may be damaged or lost. If the recorder still shows writing activity after the app closes, leave its power and disc in place and disconnect only the USB cable.'),
                 choices: [
-                    { value: 'wait', label: '계속 기다리기', kind: 'secondary' },
-                    { value: 'force', label: '앱 강제 종료', kind: 'danger' },
+                    { value: 'wait', label: uiText('계속 기다리기', 'Keep waiting'), kind: 'secondary' },
+                    { value: 'force', label: uiText('앱 강제 종료', 'Force quit app'), kind: 'danger' },
                 ],
                 cancelValue: 'wait',
             });
@@ -1731,7 +1731,7 @@ async function integrate(window) {
             return {
                 ok: false,
                 enabled: Boolean(himdService.spec.experimentalKoreanTitles),
-                message: '전송 중에는 한글 제목 실험 설정을 바꿀 수 없습니다.',
+                message: uiText('전송 중에는 한글 제목 실험 설정을 바꿀 수 없습니다.', 'The Korean title experiment setting cannot be changed during a transfer.'),
             };
         }
         if (enabled) {
@@ -1742,7 +1742,7 @@ async function integrate(window) {
                 return {
                     ok: false,
                     enabled: false,
-                    message: '이 실험 기능은 Hi-MD 모드의 Sony MZ-RH1(0x054c:0x0287)에서만 켤 수 있습니다.',
+                    message: uiText('이 실험 기능은 Hi-MD 모드의 Sony MZ-RH1(0x054c:0x0287)에서만 켤 수 있습니다.', 'This experimental feature can be enabled only for a Sony MZ-RH1 (0x054c:0x0287) in Hi-MD mode.'),
                 };
             }
         }
@@ -1758,7 +1758,7 @@ async function integrate(window) {
             return {
                 ok: false,
                 busy: true,
-                message: '현재 전송 작업이 진행 중입니다. 작업이 끝난 뒤 모드 선택 화면으로 돌아가 주세요.',
+                message: uiText('현재 전송 작업이 진행 중입니다. 작업이 끝난 뒤 모드 선택 화면으로 돌아가 주세요.', 'A transfer is in progress. Return to mode selection after it finishes.'),
             };
         }
         const warnings = [];
@@ -1767,7 +1767,7 @@ async function integrate(window) {
                 deviceName: service.netmdInterface?.netMd?.getDeviceName?.(),
                 at: Date.now(),
             });
-            await withTimeout(service.finalizeForDisconnect(), 10000, 'NetMD 연결 정리 시간이 초과되었습니다.');
+            await withTimeout(service.finalizeForDisconnect(), 10000, uiText('NetMD 연결 정리 시간이 초과되었습니다.', 'Timed out while closing the NetMD connection.'));
             appendDiagnosticLog('NetMD safe disconnect completed', { at: Date.now() });
         }
         catch (error) {
@@ -1780,10 +1780,10 @@ async function integrate(window) {
         }
         try {
             if (process.platform === 'darwin' && macHiMDConnection?.socket) {
-                await withTimeout(macHiMDConnection.callMethod('himd', 'finalize'), 5000, 'Hi-MD 연결 정리 시간이 초과되었습니다.');
+                await withTimeout(macHiMDConnection.callMethod('himd', 'finalize'), 5000, uiText('Hi-MD 연결 정리 시간이 초과되었습니다.', 'Timed out while closing the Hi-MD connection.'));
             }
             else {
-                await withTimeout(himdService.finalize(), 5000, 'Hi-MD 연결 정리 시간이 초과되었습니다.');
+                await withTimeout(himdService.finalize(), 5000, uiText('Hi-MD 연결 정리 시간이 초과되었습니다.', 'Timed out while closing the Hi-MD connection.'));
             }
         }
         catch (error) {
@@ -1846,7 +1846,7 @@ async function integrate(window) {
         if (process.platform === 'win32' && targetDevice.driverStatus !== 'winusb') {
             return {
                 ok: false,
-                message: `${targetDevice.modelHint}의 NetMD 인터페이스에 WinUSB를 먼저 설치해 주세요.`,
+                message: uiText(`${targetDevice.modelHint}의 NetMD 인터페이스에 WinUSB를 먼저 설치해 주세요.`, `Install WinUSB on the NetMD interface of ${targetDevice.modelHint} first.`),
             };
         }
         if (hasActiveTransfer(service) || hasActiveTransfer(himdService) || himdService.atdata !== null) {
@@ -2060,7 +2060,7 @@ async function integrate(window) {
     electron_1.ipcMain.handle('formatStandardMDToHiMD', formatStandardMDToHiMD);
     electron_1.ipcMain.handle('formatTimedOutMiniDiscMedia', async (_, targetFormat) => {
         if (targetFormat !== 'himd' && targetFormat !== 'netmd') {
-            return { ok: false, message: '알 수 없는 MiniDisc 포맷 형식입니다.' };
+            return { ok: false, message: uiText('알 수 없는 MiniDisc 포맷 형식입니다.', 'Unknown MiniDisc format target.') };
         }
         if (process.platform === 'darwin' && targetFormat === 'himd') {
             const result = await formatStandardMDToHiMD();
@@ -2077,8 +2077,8 @@ async function integrate(window) {
             return {
                 ok: false,
                 message: candidates.length === 0
-                    ? '포맷할 MiniDisc 기기를 찾지 못했습니다. USB를 다시 연결한 뒤 시도해 주세요.'
-                    : '안전을 위해 포맷할 MiniDisc 기기 하나만 USB에 연결해 주세요.',
+                    ? uiText('포맷할 MiniDisc 기기를 찾지 못했습니다. USB를 다시 연결한 뒤 시도해 주세요.', 'No MiniDisc recorder was found for formatting. Reconnect USB and try again.')
+                    : uiText('안전을 위해 포맷할 MiniDisc 기기 하나만 USB에 연결해 주세요.', 'For safety, connect only the one MiniDisc recorder you intend to format.'),
             };
         }
         const switchResult = targetFormat === 'himd'
@@ -2088,7 +2088,7 @@ async function integrate(window) {
         if (!switchResult.ok) {
             return {
                 ok: false,
-                message: `포맷 준비를 위해 USB 모드를 전환하지 못했습니다.\n${switchResult.message}`,
+                message: uiText(`포맷 준비를 위해 USB 모드를 전환하지 못했습니다.\n${switchResult.message}`, `Could not switch USB mode to prepare for formatting.\n${switchResult.message}`),
             };
         }
         const result = targetFormat === 'himd'
@@ -2099,7 +2099,7 @@ async function integrate(window) {
             return {
                 ...result,
                 restartRequired: true,
-                message: `${result.message}\n\n새 USB 모드로 자동 연결하기 위해 프로그램을 다시 시작합니다.`,
+                message: uiText(`${result.message}\n\n새 USB 모드로 자동 연결하기 위해 프로그램을 다시 시작합니다.`, `${result.message}\n\nThe app will restart to connect automatically in the new USB mode.`),
             };
         }
         return result;
@@ -2139,7 +2139,7 @@ async function integrate(window) {
                 return await Promise.race([
                     call,
                     new Promise((_, reject) => {
-                        timeout = setTimeout(() => reject(new Error('Hi-MD 기기 응답 시간이 초과되었습니다. USB를 분리한 뒤 기기 전원을 다시 켜고 연결해 주세요.')), 75000);
+                        timeout = setTimeout(() => reject(new Error(uiText('Hi-MD 기기 응답 시간이 초과되었습니다. USB를 분리한 뒤 기기 전원을 다시 켜고 연결해 주세요.', 'The Hi-MD recorder did not respond in time. Disconnect USB, power-cycle the recorder, and reconnect it.'))), 75000);
                     }),
                 ]);
             }
@@ -2234,7 +2234,7 @@ async function integrate(window) {
                         continue;
                     const staged = stagedHiMDUploads.get(allArgs[i].uploadId);
                     if (!staged)
-                        return [null, new Error('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.')];
+                        return [null, new Error(uiText('준비된 Hi-MD 음원 데이터를 찾지 못했습니다.', 'Prepared Hi-MD audio data was not found.'))];
                     stagedHiMDUploads.delete(allArgs[i].uploadId);
                     allArgs[i] = {
                         interprocessType: 'stagedHiMDUploadFile',
@@ -2381,9 +2381,9 @@ async function integrate(window) {
             webusb.clearPreferredDevice();
             recentUsbTransferFailure = null;
             void showRendererWarning(window, {
-                title: 'N1 전송 중 USB 연결이 끊어졌습니다',
-                message: '전송을 중단하고 앱의 자동 재시작을 막았습니다.',
-                detail: '진행 중이던 곡은 이어서 전송할 수 없습니다. USB 케이블과 기기 전원을 확인한 뒤 다시 연결하고 전송해 주세요. 같은 현상이 반복되면 진단 로그를 확인해 원인을 더 좁힐 수 있습니다.',
+                title: uiText('N1 전송 중 USB 연결이 끊어졌습니다', 'USB disconnected during N1 transfer'),
+                message: uiText('전송을 중단하고 앱의 자동 재시작을 막았습니다.', 'The transfer was stopped and the app was prevented from restarting automatically.'),
+                detail: uiText('진행 중이던 곡은 이어서 전송할 수 없습니다. USB 케이블과 기기 전원을 확인한 뒤 다시 연결하고 전송해 주세요. 같은 현상이 반복되면 진단 로그를 확인해 원인을 더 좁힐 수 있습니다.', 'The interrupted track cannot be resumed. Check the USB cable and recorder power, reconnect, and transfer it again. If this repeats, use the diagnostic log to narrow down the cause.'),
             });
             return;
         }
