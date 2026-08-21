@@ -6,6 +6,8 @@ const fs = require("fs");
 const fsp = fs.promises;
 const { spawn } = require("child_process");
 const fetch = require("node-fetch");
+const ElectronStoreModule = require("electron-store");
+const ElectronStore = ElectronStoreModule.default || ElectronStoreModule;
 
 const AUDIO_EXTENSIONS = new Set([
     ".mp3", ".flac", ".m4a", ".mp4", ".aac", ".ogg", ".opus", ".wav", ".wma",
@@ -17,6 +19,20 @@ let mdLabelMakerWindow = null;
 let preserveLabelDraftOnClose = false;
 let resolveUILanguage = () => /^ko(?:-|$)/i.test(app.getLocale()) ? "ko" : "en";
 const uiText = (korean, english) => resolveUILanguage() === "ko" ? korean : english;
+
+function getUILanguage() {
+    try {
+        const configured = new ElectronStore().get("uiLanguage", "auto");
+        if (configured === "ko" || configured === "en")
+            return configured;
+    }
+    catch (_) { }
+    return /^ko(?:-|$)/i.test(app.getLocale()) ? "ko" : "en";
+}
+
+function uiText(korean, english) {
+    return getUILanguage() === "ko" ? korean : english;
+}
 
 function labelRelaunchStatePath() {
     return path.join(app.getPath("userData"), "minidisc-label-maker-relaunch.json");
@@ -90,7 +106,7 @@ async function listAudioFiles(folder, depth = 0) {
             files.push(...await listAudioFiles(fullPath, depth + 1));
         }
         if (files.length > 5000)
-            throw new Error(uiText("음원이 5,000개를 넘어 앨범 단위의 폴더를 선택해 주세요.", "More than 5,000 audio files were found. Select an album-level folder."));
+            throw new Error(uiText("음원이 5,000개를 넘어 앨범 단위의 폴더를 선택해 주세요.", "More than 5,000 audio files were found. Choose an album-level folder."));
     }
     return files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 }
@@ -639,7 +655,9 @@ function setupMDSquirrelIPC(window, uiLanguageResolver) {
                 void shell.openExternal(url);
             return { action: "deny" };
         });
-        await mdLabelMakerWindow.loadFile(path.join(__dirname, "..", "renderer", "md-label-maker", "index.html"));
+        await mdLabelMakerWindow.loadFile(path.join(__dirname, "..", "renderer", "md-label-maker", "index.html"), {
+            query: { lang: getUILanguage() },
+        });
         return true;
     };
     ipcMain.handle("mdLabelMakerOpen", openLabelMaker);
@@ -650,7 +668,7 @@ function setupMDSquirrelIPC(window, uiLanguageResolver) {
     }
     ipcMain.handle("mdSquirrelSelectFolder", async () => {
         const result = await dialog.showOpenDialog(window, {
-            title: uiText("MD Squirrel - 음원 폴더 선택", "MD Squirrel - Select audio folder"),
+            title: uiText("MD Squirrel - 음원 폴더 선택", "MD Squirrel - Choose audio folder"),
             properties: ["openDirectory"],
         });
         return result.canceled ? null : result.filePaths[0];
@@ -664,7 +682,7 @@ function setupMDSquirrelIPC(window, uiLanguageResolver) {
         const artist = String(payload?.artist || "").trim().slice(0, 300);
         const query = [title, artist, uiText("영어 제목", "English title")].filter(Boolean).join(" ");
         if (!query)
-            throw new Error(uiText("검색할 제목이나 아티스트가 없습니다.", "No title or artist was provided for the search."));
+            throw new Error(uiText("검색할 제목이나 아티스트가 없습니다.", "Enter a title or artist to search."));
         return shell.openExternal(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
     });
     ipcMain.handle("mdSquirrelCreateCopies", (_, payload) => createEnglishCopies(window, payload));

@@ -1987,16 +1987,16 @@ exports.CHANGELOG = [
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.checked = netmdOriginalTitleModeEnabled;
-        input.setAttribute('aria-label', uiText('원본 프로그램 방식으로 제목 보내기', 'Send titles using the original app method'));
+        input.setAttribute('aria-label', uiText('원본 프로그램 방식으로 제목 보내기', 'Use original title handling'));
         Object.assign(input.style, { width: '18px', height: '18px', margin: '0', accentColor: '#de9957' });
         const label = document.createElement('span');
-        label.textContent = uiText('원본 프로그램 방식으로 제목 보내기', 'Send titles using the original app method');
+        label.textContent = uiText('원본 프로그램 방식으로 제목 보내기', 'Use original title handling');
         const badge = document.createElement('span');
         badge.textContent = uiText('실험', 'Experimental');
         Object.assign(badge.style, { marginLeft: 'auto', padding: '2px 7px', borderRadius: '10px', background: '#a76832', color: '#fff', fontSize: '11px' });
         row.append(input, label, badge);
         const description = document.createElement('div');
-        description.textContent = uiText('켜면 우리가 추가한 로마자 변환만 건너뛰고 Web MiniDisc 원본의 제목 처리 함수를 그대로 사용합니다. NetMD와 Hi-MD 모두에 적용되며 기기에 따라 글자가 깨질 수 있습니다.', 'When enabled, only the added romanization is bypassed and the original Web MiniDisc title handling is used. This applies to both NetMD and Hi-MD, and some recorders may display garbled text.');
+        description.textContent = uiText('켜면 우리가 추가한 로마자 변환만 건너뛰고 Web MiniDisc 원본의 제목 처리 함수를 그대로 사용합니다. NetMD와 Hi-MD 모두에 적용되며 기기에 따라 글자가 깨질 수 있습니다.', 'When enabled, only the added romanization step is skipped and the original Web MiniDisc title handling is used. This applies to NetMD and Hi-MD, and some recorders may display corrupted characters.');
         Object.assign(description.style, { margin: '7px 0 0 28px', color: 'rgba(255,224,191,.78)', fontSize: '12px', lineHeight: '1.45' });
         const status = document.createElement('div');
         Object.assign(status.style, { margin: '7px 0 0 28px', color: '#e7ad78', fontSize: '11px' });
@@ -2183,7 +2183,7 @@ exports.CHANGELOG = [
                     if (value.includes('현재 기기는 Hi-MD') ||
                         value.includes('현재 기기의 USB 인터페이스는 Hi-MD') ||
                         value.includes('현재 기기의 USB 인터페이스가 Hi-MD')) {
-                        node.nodeValue = uiText('현재 USB 인터페이스가 Hi-MD 모드에 남아 있습니다. 이 표시만으로 디스크 포맷을 판단할 수는 없습니다. 일반 NetMD 포맷 미디어라면 USB 케이블을 뺐다가 다시 연결한 뒤 NetMD를 선택하세요. Hi-MD 포맷 미디어라면 “Hi-MD로 연결”을 선택하세요. 디스크를 지울 목적이 아니라면 전체 삭제 버튼은 누르지 마세요.', 'The current USB interface remains in Hi-MD mode. This alone does not identify the disc format. For standard NetMD-formatted media, reconnect USB and select NetMD. For Hi-MD-formatted media, select “Connect with Hi-MD”. Do not use the wipe option unless you intend to erase the disc.');
+                        node.nodeValue = uiText('현재 USB 인터페이스가 Hi-MD 모드에 남아 있습니다. 이 표시만으로 디스크 포맷을 판단할 수는 없습니다. 일반 NetMD 포맷 미디어라면 USB 케이블을 뺐다가 다시 연결한 뒤 NetMD를 선택하세요. Hi-MD 포맷 미디어라면 “Hi-MD로 연결”을 선택하세요. 디스크를 지울 목적이 아니라면 전체 삭제 버튼은 누르지 마세요.', 'The USB interface is still in Hi-MD mode. This alone does not identify the disc format. For standard NetMD media, reconnect USB and select NetMD. For Hi-MD-formatted media, select “Connect with Hi-MD.” Do not use the erase action unless you intend to wipe the disc.');
                         break;
                     }
                     node = walker.nextNode();
@@ -2227,7 +2227,7 @@ exports.CHANGELOG = [
                     }
                     const resultMessage = result?.message || (result?.ok ? uiText('포맷 명령을 완료했습니다.', 'The format command completed.') : uiText('포맷에 실패했습니다.', 'Formatting failed.'));
                     if (result?.ok) {
-                        progress.update({ message: uiText('NetMD 전환을 확인했습니다. 새 연결 상태로 앱을 다시 시작합니다.', 'The switch to NetMD was confirmed. Restarting the app with the new connection state.') });
+                        progress.update({ message: uiText('NetMD 전환을 확인했습니다. 새 연결 상태로 앱을 다시 시작합니다.', 'The NetMD switch was confirmed. Restarting the app with the new connection.') });
                         await electron_1.ipcRenderer.invoke('restartAfterMiniDiscModeSwitch', 'netmd');
                         return;
                     }
@@ -2472,7 +2472,7 @@ exports.CHANGELOG = [
         }));
     });
     const disconnectAndReturnHome = async (exitItem, homeButton) => {
-        const pendingEditButton = Array.from(document.querySelectorAll('button[aria-label="편집 적용"]'))
+        const pendingEditButton = Array.from(document.querySelectorAll('button[aria-label="편집 적용"], button[aria-label="Commit changes"]'))
             .find(button => !button.disabled);
         const progressOverlay = showModeExitProgress();
         if (homeButton) {
@@ -2490,7 +2490,7 @@ exports.CHANGELOG = [
             const result = await returnToModeSelection();
             if (!result?.ok) {
                 progressOverlay.remove();
-                window.alert(result?.message || uiText('현재 연결을 정리하지 못했습니다.', 'Could not close the current connection.'));
+                window.alert(result?.message || uiText('현재 연결을 정리하지 못했습니다.', 'The current connection could not be closed.'));
                 if (homeButton) {
                     homeButton.disabled = false;
                     setModeHomeButtonIcon(homeButton);
@@ -2514,7 +2514,7 @@ exports.CHANGELOG = [
         }
         catch (error) {
             progressOverlay.remove();
-            window.alert(uiText(`모드 선택 화면으로 돌아가는 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`, `An error occurred while returning to the mode selection screen: ${error instanceof Error ? error.message : String(error)}`));
+            window.alert(uiText(`모드 선택 화면으로 돌아가는 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`, `An error occurred while returning to mode selection: ${error instanceof Error ? error.message : String(error)}`));
             if (homeButton) {
                 homeButton.disabled = false;
                 setModeHomeButtonIcon(homeButton);
@@ -2719,11 +2719,11 @@ exports.CHANGELOG = [
     let netMDNoDiscPromptTimer = null;
     const installNetMDNoDiscRecovery = () => {
         const heading = Array.from(document.querySelectorAll('h1, h2, [role="heading"]'))
-            .find(element => /^불러오는 중(?:…|\.\.\.)?$/.test((element.textContent || '').trim()));
+            .find(element => /^(?:불러오는 중|Loading)(?:…|\.\.\.)?$/i.test((element.textContent || '').trim()));
         const pageText = (document.body?.textContent || '').replace(/\s+/g, ' ');
         const looksLikeNetMDNoDisc = requestedMiniDiscMode === 'netmd' &&
             Boolean(heading) &&
-            pageText.includes('디스크가 없습니다') &&
+            /(?:디스크가 없습니다|No disc)/i.test(pageText) &&
             pageText.includes('NO DISC');
         if (!looksLikeNetMDNoDisc) {
             if (netMDNoDiscPromptTimer !== null) {
@@ -2739,15 +2739,15 @@ exports.CHANGELOG = [
             netMDNoDiscPromptTimer = null;
             const currentText = (document.body?.textContent || '').replace(/\s+/g, ' ');
             const stillNoDisc = requestedMiniDiscMode === 'netmd' &&
-                currentText.includes('디스크가 없습니다') &&
+                /(?:디스크가 없습니다|No disc)/i.test(currentText) &&
                 currentText.includes('NO DISC');
             if (!stillNoDisc || netMDNoDiscPromptShown)
                 return;
             netMDNoDiscPromptShown = true;
             void showMiniDiscWarning({
-                title: uiText('NetMD에서 미디어를 읽을 수 없습니다', 'Media cannot be read in NetMD mode'),
-                message: uiText('디스크가 없거나 Hi-MD 형식의 미디어가 들어 있습니다.', 'No disc is present, or Hi-MD-formatted media is inserted.'),
-                detail: uiText('Hi-MD 포맷을 유지하려면 뒤로 돌아가 Hi-MD를 선택하세요. 이 디스크를 완전히 지우고 일반 MD 형식으로 바꾸려는 경우에만 “일반 MD로 포맷”을 누르세요. 1GB Hi-MD 전용 미디어는 일반 MD로 변환할 수 없습니다.', 'To keep the Hi-MD format, go back and select Hi-MD. Select “Format as standard MD” only if you intend to erase the entire disc and convert it to standard MD format. Dedicated 1 GB Hi-MD media cannot be converted to standard MD.'),
+                title: uiText('NetMD에서 미디어를 읽을 수 없습니다', 'NetMD cannot read the media'),
+                message: uiText('디스크가 없거나 Hi-MD 형식의 미디어가 들어 있습니다.', 'No disc is inserted, or the media is formatted as Hi-MD.'),
+                detail: uiText('Hi-MD 포맷을 유지하려면 뒤로 돌아가 Hi-MD를 선택하세요. 이 디스크를 완전히 지우고 일반 MD 형식으로 바꾸려는 경우에만 “일반 MD로 포맷”을 누르세요. 1GB Hi-MD 전용 미디어는 일반 MD로 변환할 수 없습니다.', 'To keep the Hi-MD format, go back and select Hi-MD. Select “Format as standard MD” only if you intend to erase and convert this disc. Dedicated 1GB Hi-MD media cannot be converted to standard MD.'),
                 formatTarget: 'netmd',
                 formatLabel: uiText('일반 MD로 포맷', 'Format as standard MD'),
             });
@@ -3022,21 +3022,21 @@ exports.CHANGELOG = [
     };
     const buildMDTransferDiagnostics = async (snapshot) => {
         let devices = [];
-        let deviceFallback = uiText('USB 장치 정보를 읽지 못했습니다.', 'Could not read USB device information.');
+        let deviceFallback = uiText('USB 장치 정보를 읽지 못했습니다.', 'USB device information could not be read.');
         try {
             const diagnostics = await Promise.race([
                 getMiniDiscDiagnostics().then(value => ({ status: 'complete', value })),
                 new Promise(resolve => setTimeout(() => resolve({ status: 'timeout' }), 1500)),
             ]);
             if (diagnostics.status === 'timeout') {
-                deviceFallback = uiText('USB 장치 진단 시간이 초과되었습니다. 전송 화면 정보만 복사했습니다.', 'USB device diagnostics timed out. Only transfer-screen information was copied.');
+                deviceFallback = uiText('USB 장치 진단 시간이 초과되었습니다. 전송 화면 정보만 복사했습니다.', 'USB device diagnostics timed out. Only the transfer screen information was copied.');
             }
             else {
                 devices = diagnostics.value?.devices || [];
             }
         }
         catch (_) {
-            deviceFallback = uiText('USB 장치 진단에 실패했습니다. 전송 화면 정보만 복사했습니다.', 'USB device diagnostics failed. Only transfer-screen information was copied.');
+            deviceFallback = uiText('USB 장치 진단에 실패했습니다. 전송 화면 정보만 복사했습니다.', 'USB device diagnostics failed. Only the transfer screen information was copied.');
         }
         const deviceLines = devices.length > 0
             ? devices.map(device => [
@@ -3048,9 +3048,9 @@ exports.CHANGELOG = [
             ].join(' · '))
             : [deviceFallback];
         return [
-            uiText('Web MiniDisc Pro · MD 전송 정지 진단', 'Web MiniDisc Pro · Stalled MD transfer diagnostics'),
+            uiText('Web MiniDisc Pro · MD 전송 정지 진단', 'Web MiniDisc Pro · stalled MD transfer diagnostics'),
             uiText(`시각: ${new Date().toLocaleString()}`, `Time: ${new Date().toLocaleString()}`),
-            uiText(`화면 기기: ${document.querySelector('h1')?.textContent?.trim() || '확인되지 않음'}`, `Screen recorder: ${document.querySelector('h1')?.textContent?.trim() || 'Unknown'}`),
+            uiText(`화면 기기: ${document.querySelector('h1')?.textContent?.trim() || '확인되지 않음'}`, `Screen device: ${document.querySelector('h1')?.textContent?.trim() || 'Unknown'}`),
             uiText(`진행률: ${snapshot.percent}%`, `Progress: ${snapshot.percent}%`),
             uiText(`정지 시간: ${Math.max(1, Math.round((Date.now() - snapshot.changedAt) / 1000))}초`, `Stalled for: ${Math.max(1, Math.round((Date.now() - snapshot.changedAt) / 1000))} seconds`),
             uiText(`전송 항목: ${snapshot.track || '확인되지 않음'}`, `Transfer item: ${snapshot.track || 'Unknown'}`),
@@ -3086,7 +3086,7 @@ exports.CHANGELOG = [
                     </svg>
                 </span>
                 <span>
-                    <h2 class="wmd-transfer-stall-title" id="wmd-transfer-stall-title">${uiText('MD 쓰기 응답이 없습니다', 'The MD write operation is not responding')}</h2>
+                    <h2 class="wmd-transfer-stall-title" id="wmd-transfer-stall-title">${uiText('MD 쓰기 응답이 없습니다', 'No response while writing to MD')}</h2>
                     <p class="wmd-transfer-stall-subtitle">${uiText('진행률이 90초 동안 바뀌지 않았습니다.', 'Progress has not changed for 90 seconds.')}</p>
                 </span>
             </header>
@@ -3097,29 +3097,29 @@ exports.CHANGELOG = [
                         <span class="wmd-transfer-stall-status-value">${snapshot.conversionComplete ? uiText('완료', 'Complete') : uiText('확인 중', 'Checking')}</span>
                     </div>
                     <div class="wmd-transfer-stall-status-item">
-                        <span class="wmd-transfer-stall-status-label">${uiText('MD 기록', 'MD write')}</span>
+                        <span class="wmd-transfer-stall-status-label">${uiText('MD 기록', 'MD writing')}</span>
                         <span class="wmd-transfer-stall-status-value">${uiText(`${snapshot.percent}%에서 정지`, `Stalled at ${snapshot.percent}%`)}</span>
                     </div>
                     <div class="wmd-transfer-stall-status-item">
                         <span class="wmd-transfer-stall-status-label">${uiText('USB 상태', 'USB status')}</span>
-                        <span class="wmd-transfer-stall-status-value">${uiText('응답 대기 중', 'Waiting for a response')}</span>
+                        <span class="wmd-transfer-stall-status-value">${uiText('응답 대기 중', 'Waiting for response')}</span>
                     </div>
                 </div>
                 <div class="wmd-transfer-stall-reasons">
                     <strong>${uiText('가능성 높은 원인 · 확정 진단은 아닙니다', 'Likely causes · not a definitive diagnosis')}</strong>
                     <ul>
-                        <li>${uiText('미디어 기록면 또는 디스크 불량', 'Damaged recording surface or faulty disc')}</li>
-                        <li>${uiText('기록 헤드·레이저 등 기기 기록 계통 이상', 'Recorder write-system fault, such as the write head or laser')}</li>
-                        <li>${uiText('배터리·AC 어댑터 전원 부족', 'Insufficient battery or AC-adapter power')}</li>
-                        <li>${uiText('USB 케이블·허브·통신 불안정', 'Unstable USB cable, hub, or communication')}</li>
+                        <li>${uiText('미디어 기록면 또는 디스크 불량', 'Defective disc or recording surface')}</li>
+                        <li>${uiText('기록 헤드·레이저 등 기기 기록 계통 이상', 'Recorder write-path fault, such as the head or laser')}</li>
+                        <li>${uiText('배터리·AC 어댑터 전원 부족', 'Insufficient battery or AC adapter power')}</li>
+                        <li>${uiText('USB 케이블·허브·통신 불안정', 'Unstable USB cable, hub, or connection')}</li>
                     </ul>
                 </div>
-                <p class="wmd-transfer-stall-note">${uiText('자동 재시도는 TOC와 기록 상태를 더 꼬이게 할 수 있어 실행하지 않습니다.', 'Automatic retry is disabled because it could further corrupt the TOC or recording state.')}</p>
+                <p class="wmd-transfer-stall-note">${uiText('자동 재시도는 TOC와 기록 상태를 더 꼬이게 할 수 있어 실행하지 않습니다.', 'The app will not retry automatically because that could further damage the TOC or write state.')}</p>
             </div>
             <footer class="wmd-transfer-stall-actions">
                 <button type="button" class="wmd-transfer-stall-button" data-wmd-stall-copy>${uiText('진단 정보 복사', 'Copy diagnostics')}</button>
                 <button type="button" class="wmd-transfer-stall-button wmd-transfer-stall-button-danger" data-wmd-stall-cancel>${uiText('앱 강제 종료…', 'Force quit app…')}</button>
-                <button type="button" class="wmd-transfer-stall-button wmd-transfer-stall-button-primary" data-wmd-stall-wait>${uiText('조금 더 대기', 'Wait a little longer')}</button>
+                <button type="button" class="wmd-transfer-stall-button wmd-transfer-stall-button-primary" data-wmd-stall-wait>${uiText('조금 더 대기', 'Wait longer')}</button>
             </footer>
         `;
         overlay.appendChild(panel);
