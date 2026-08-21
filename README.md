@@ -40,12 +40,17 @@ RAM 패치는 휘발성이므로 기기의 전원이 완전히 꺼지면 사라�
 ## Status
 
 The source and GitHub Actions build pipeline are public. Web MiniDisc Pro 1.5.4
-— Windows Custom R7 is available from the
-[Windows Custom R7 release](https://github.com/run240/web-minidisc-pro-custom/releases/tag/windows-v1.5.4-r7)
+— Windows Custom R8 is available from the
+[Windows Custom R8 release](https://github.com/run240/web-minidisc-pro-custom/releases/tag/windows-v1.5.4-r8)
 as a portable x64 ZIP. The current portable build is unsigned; open-source
 code-signing is not currently active. A SignPath-compatible workflow is
 included for possible future use, but no signing certificate has been issued
 to this project.
+
+The `main` branch contains updates made after the R8 tag, including the new
+application icon, refreshed security dependencies, startup stabilization, and
+a longer Hi-MD finalization window for the MZ-RH10 on Windows. These changes
+will not be present in the downloadable R8 ZIP until a newer release is built.
 
 The tested Intel macOS (`x64`) v12 DMG is available from the
 [Intel macOS Hi-MD v12 release](https://github.com/run240/web-minidisc-pro-custom/releases/tag/macos-intel-himd-v12).
@@ -55,13 +60,31 @@ claimed by macOS. Apple Silicon is not currently packaged or supported.
 
 ## Windows Custom 안내
 
-1. 위 Windows Custom R7 릴리스에서 x64 ZIP과 SHA-256 파일을 받습니다.
+![Windows 한국어 홈 화면](docs/images/windows-home-ko.png)
+
+### 주요 기능
+
+- 일반 MD/MDLP용 NetMD와 Hi-MD 형식/1GB 미디어용 Hi-MD 연결
+- 앱 안에서 안내하는 범용 MiniDisc WinUSB 드라이버 설치와 상태 진단
+- 여러 연결 기기의 모델·USB 위치 선택 및 NetMD/Hi-MD 모드 전환
+- 녹음, 트랙 내려받기, 제목·그룹·순서 임시 편집과 적용 결과 확인
+- 일반 MD와 Hi-MD 형식 사이의 포맷 절차와 파괴적 작업 재확인
+- 99% 마무리 구간 감지, 한국어 오류 복구 안내와 진단 정보 복사
+- MiniDisc 라벨 제작기와 영문 태그 복사본을 만드는 MD Squirrel
+- 한국어·영어 UI 선택 및 언어별 Windows 문서와 스크린샷
+
+### 설치
+
+1. 위 Windows Custom R8 릴리스에서 x64 ZIP과 SHA-256 파일을 받습니다.
 2. 해시를 확인한 뒤 ZIP을 새 폴더에 완전히 압축 해제합니다.
 3. `Web MiniDisc Pro.exe`를 실행합니다.
 4. 기기를 연결하고 NetMD 또는 Hi-MD 모드를 선택합니다.
 
 Windows용 WinUSB 설치 과정, 자체 서명 테스트 드라이버 인증서, 변경 취소
-방법은 [Windows 빌드 및 설치 안내](docs/WINDOWS.md)를 먼저 확인해 주세요.
+방법, NetMD/Hi-MD 사용 순서와 99% 오류 복구는
+[Windows 사용 안내](docs/WINDOWS.md)를 먼저 확인해 주세요.
+English instructions and separately captured English screenshots are available
+in the [Windows user guide](docs/WINDOWS_EN.md).
 
 ## Intel macOS Hi-MD v12 안내
 
@@ -138,13 +161,21 @@ RAM 패치는 기기 전원이 완전히 꺼지면 사라지지만 미디어의 
 
 ## Screenshots
 
-### Windows home and mode selection
+### Windows home and mode selection — Korean / 한국어
 
-![Web MiniDisc Pro 1.5.4 Windows Custom R7 home](docs/images/v7-home.png)
+![Web MiniDisc Pro Custom Windows home in Korean](docs/images/windows-home-ko.png)
 
-### MiniDisc label maker
+### Windows home and mode selection — English
 
-![MiniDisc label maker](docs/images/v7-label-maker.png)
+![Web MiniDisc Pro Custom Windows home in English](docs/images/windows-home-en.png)
+
+### MiniDisc label maker — Korean / 한국어
+
+![MiniDisc label maker in Korean](docs/images/windows-label-maker-ko.png)
+
+### MiniDisc Label Maker — English
+
+![MiniDisc Label Maker in English](docs/images/windows-label-maker-en.png)
 
 ## Community testing and reviews
 
@@ -161,7 +192,7 @@ troubleshooting feedback across several releases.
 - `src/`: ElectronWMD source
 - `webminidisc/`: pinned Web MiniDisc Pro submodule
 - `third_party/libwdi/`: complete libwdi source used as the basis for the WinUSB driver package
-- `custom-overrides/`: exact Windows Custom R7 generated-file modifications and label-maker assets
+- `custom-overrides/`: reviewed Windows Custom generated-file modifications and label-maker assets
 - `.github/workflows/build-signpath.yml`: Windows build, release packaging, and optional SignPath submission
 - `signpath-artifact-configuration.xml`: Authenticode signing scope
 
@@ -170,7 +201,7 @@ Base revisions:
 - ElectronWMD: `a3f30f8ae3bb022aa8aa58776dc7e473c09ad066`
 - Web MiniDisc Pro: `30c3045155a1c057171506aaf3ffee64552df679`
 
-The current Windows Custom R7 modifications were originally made against generated output.
+The Windows Custom modifications were originally made against generated output.
 They are kept as a transparent build overlay so the existing release can be
 reproduced. Future changes should be moved into the TypeScript/React sources
 where practical.
@@ -183,7 +214,7 @@ for offline and GitHub Actions builds.
 
 Requirements:
 
-- Node.js 20
+- Node.js 22.12 or newer
 - Visual Studio 2022 Build Tools with Desktop development with C++
 - Windows 10 or Windows 11 SDK
 
