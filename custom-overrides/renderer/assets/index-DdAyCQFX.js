@@ -218791,17 +218791,9 @@ const Slide = reactExports.forwardRef(function e(t, n) {
                     }),
                   ],
                 }),
-                jsxRuntimeExports.jsxs("li", {
-                  children: [
-                    "MiniDisc icon from",
-                    " ",
-                    jsxRuntimeExports.jsx(Link, {
-                      rel: "noopener noreferrer",
-                      href: "https://www.deviantart.com/blinkybill/art/Sony-MiniDisc-Plastic-Icon-473812540",
-                      target: "_blank",
-                      children: "http://fav.me/d7u3g3g",
-                    }),
-                  ],
+                jsxRuntimeExports.jsx("li", {
+                  children:
+                    "Application icon is an original design created for this custom build.",
                 }),
               ],
             }),
