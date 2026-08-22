@@ -218822,7 +218822,7 @@ const Slide = reactExports.forwardRef(function e(t, n) {
                 }),
                 jsxRuntimeExports.jsx("li", {
                   children:
-                    "Application icon: original artwork for the combined MiniDisc and Network Walkman build",
+                    "Application icon is an original design created for this combined MiniDisc and Network Walkman custom build.",
                 }),
               ],
             }),
@@ -227661,8 +227661,8 @@ const useStyles$n = makeStyles()((e) => ({
                                     onClick: Mt,
                                     disabled: P,
                                     children: wmdCustomText(
-                                      wmdCustomText("RH10 연결 진단", "RH10 connection diagnostics"),
-                                      "RH10 connection diagnostics",
+                                      wmdCustomText("MiniDisc 연결 진단", "MiniDisc connection diagnostics"),
+                                      "MiniDisc connection diagnostics",
                                     ),
                                   }),
                                   Rt &&
@@ -227679,8 +227679,8 @@ const useStyles$n = makeStyles()((e) => ({
                                       },
                                       disabled: P,
                                       children: wmdCustomText(
-                                        wmdCustomText("Zadig 드라이버 안내", "Zadig driver guide"),
-                                        "Zadig driver guide",
+                                        wmdCustomText("WinUSB 드라이버 안내", "WinUSB driver guide"),
+                                        "WinUSB driver guide",
                                       ),
                                     }),
                                   At &&
@@ -227921,7 +227921,7 @@ const useStyles$n = makeStyles()((e) => ({
                         ? void 0
                         : Dt.call(jt);
                     },
-                    children: wmdCustomText("Zadig 안내 열기", "Open the Zadig guide"),
+                    children: wmdCustomText("WinUSB 안내 열기", "Open the WinUSB guide"),
                   }),
                 (bt == null ? void 0 : bt.recommendedOption) !== void 0 &&
                   jsxRuntimeExports.jsx(Button$1, {
