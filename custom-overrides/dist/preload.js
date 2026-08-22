@@ -1708,6 +1708,7 @@ exports.CHANGELOG = [
             next: '<path d="m5 4 9 8-9 8V4z"/><path d="M19 5v14"/>',
             warning: '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
             info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+            eject: '<path d="M5 17h14v2H5"/><path d="m12 5-6.67 10h13.34z"/>',
         };
         const paths = icons[name];
         if (!paths)
@@ -1740,7 +1741,15 @@ exports.CHANGELOG = [
         }
         const heading = Array.from(document.querySelectorAll('h1')).find(element => /Web MiniDisc Pro|HiMD \(|Sony (?:MZ|NW|MDS)-|MiniDisc/i.test((element.textContent || '').trim()));
         const shell = heading?.closest('.MuiPaper-root');
-        const topMenuButton = shell?.querySelector('h1')?.parentElement?.querySelector('button');
+        const header = shell?.querySelector('h1')?.parentElement;
+        const headerButtons = header ? Array.from(header.querySelectorAll(':scope > span > button')) : [];
+        const topMenuButton = headerButtons.at(-1);
+        const ejectButton = headerButtons.find(button => button.querySelector('[data-testid="EjectIcon"]'));
+        if (ejectButton && ejectButton !== topMenuButton && !ejectButton.dataset.wmdLucideEject) {
+            ejectButton.innerHTML = lucideIcon('eject', 25);
+            ejectButton.dataset.wmdLucideEject = 'true';
+            ejectButton.setAttribute('aria-label', uiText('디스크 꺼내기', 'Eject disc'));
+        }
         if (topMenuButton && !topMenuButton.dataset.wmdLucideTopMenu) {
             topMenuButton.innerHTML = lucideIcon('more', 25);
             topMenuButton.dataset.wmdLucideTopMenu = 'true';
