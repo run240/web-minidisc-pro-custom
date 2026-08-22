@@ -1,3 +1,5 @@
+import { evaluateArithmeticExpression } from "./safe-expression-evaluator.mjs";
+
 const wmdCustomUILanguage =
   localStorage.getItem("wmdUiLanguage") ||
   (/^ko(?:-|$)/i.test(navigator.language || "") ? "ko" : "en");
@@ -169700,7 +169702,9 @@ function evaluate(e, t, n) {
                 resolveExpression(S, n),
               ),
             )));
-    else if (st === IVAR)
+    else if (st === IVAR) {
+      if (/^__proto__|prototype|constructor$/.test(tt.value))
+        throw new Error("prototype access detected");
       if (tt.value in t.functions) o.push(t.functions[tt.value]);
       else if (tt.value in t.unaryOps && t.parser.isOperatorEnabled(tt.value))
         o.push(t.unaryOps[tt.value]);
@@ -169709,7 +169713,7 @@ function evaluate(e, t, n) {
         if (lt !== void 0) o.push(lt);
         else throw new Error("undefined variable: " + tt.value);
       }
-    else if (st === IOP1)
+    } else if (st === IOP1)
       ((g = o.pop()),
         (A = t.unaryOps[tt.value]),
         o.push(A(resolveExpression(g, n))));
@@ -171722,7 +171726,6 @@ function requireAssembler() {
   (Object.defineProperty(assembler, "__esModule", { value: !0 }),
     (assembler.Assembler = assembler.AssemblerSyntaxError = void 0));
   const t = requireUtils$3(),
-    n = require$$1$2,
     o = requireLib(),
     g = e(require$$3$2),
     s = requireKeystoneArm(),
@@ -171797,7 +171800,7 @@ function requireAssembler() {
           let Ct = this.removeComments(Rt),
             Tt = Ct.replace(/\<([^\<])*\>/g, (Mt) => {
               let Nt = A(Mt.substring(1, Mt.length - 1), tt, st);
-              return `${n.Parser.evaluate(Nt)}`;
+              return `${evaluateArithmeticExpression(Nt)}`;
             });
           if (
             (Ct !== Tt &&
@@ -201543,11 +201546,24 @@ function renameDisc({ newName: e, newFullWidthName: t }) {
 }
 function deleteTracks(e) {
   return async function (t) {
-    if (
-      !window.confirm(
-        `Proceed with Delete Track${e.length !== 1 ? "s" : ""}? This operation cannot be undone.`,
-      )
-    )
+    const n = await ((window.native == null ? void 0 : window.native.confirmMiniDiscAction)
+      ? window.native.confirmMiniDiscAction({
+          title: wmdCustomText("트랙 삭제", "Delete tracks"),
+          message: wmdCustomText(
+            `${e.length}곡을 삭제할까요?`,
+            `Delete ${e.length} selected track${e.length !== 1 ? "s" : ""}?`,
+          ),
+          detail: wmdCustomText(
+            "삭제한 곡은 복구할 수 없습니다.",
+            "Deleted tracks cannot be recovered.",
+          ),
+          confirmLabel: wmdCustomText("삭제", "Delete"),
+          cancelLabel: wmdCustomText("취소", "Cancel"),
+        })
+      : Promise.resolve(window.confirm(
+          `Proceed with Delete Track${e.length !== 1 ? "s" : ""}? This operation cannot be undone.`,
+        )));
+    if (!n)
       return !1;
     const { netmdService: o } = ServiceRegistry;
     t(actions$8.setLoading(!0));
@@ -201589,11 +201605,24 @@ function deleteTracks(e) {
 }
 function wipeDisc() {
   return async function (e) {
-    if (
-      !window.confirm(
-      wmdCustomText("디스크의 모든 곡을 삭제할까요? 이 작업은 되돌릴 수 없습니다.", "Delete every track on the disc? This cannot be undone."),
-      )
-    )
+    const t = await ((window.native == null ? void 0 : window.native.confirmMiniDiscAction)
+      ? window.native.confirmMiniDiscAction({
+          title: wmdCustomText("전체 삭제", "Delete all tracks"),
+          message: wmdCustomText(
+            "기기의 모든 곡을 삭제할까요?",
+            "Delete every track on the device?",
+          ),
+          detail: wmdCustomText(
+            "삭제한 곡은 복구할 수 없습니다.",
+            "Deleted tracks cannot be recovered.",
+          ),
+          confirmLabel: wmdCustomText("전체 삭제", "Delete all"),
+          cancelLabel: wmdCustomText("취소", "Cancel"),
+        })
+      : Promise.resolve(window.confirm(
+          wmdCustomText("디스크의 모든 곡을 삭제할까요? 이 작업은 되돌릴 수 없습니다.", "Delete every track on the disc? This cannot be undone."),
+        )));
+    if (!t)
       return false;
     const { netmdService: n } = ServiceRegistry;
     e(actions$8.setLoading(!0));
@@ -218791,17 +218820,9 @@ const Slide = reactExports.forwardRef(function e(t, n) {
                     }),
                   ],
                 }),
-                jsxRuntimeExports.jsxs("li", {
-                  children: [
-                    "MiniDisc icon from",
-                    " ",
-                    jsxRuntimeExports.jsx(Link, {
-                      rel: "noopener noreferrer",
-                      href: "https://www.deviantart.com/blinkybill/art/Sony-MiniDisc-Plastic-Icon-473812540",
-                      target: "_blank",
-                      children: "http://fav.me/d7u3g3g",
-                    }),
-                  ],
+                jsxRuntimeExports.jsx("li", {
+                  children:
+                    "Application icon: original artwork for the combined MiniDisc and Network Walkman build",
                 }),
               ],
             }),
@@ -227038,8 +227059,8 @@ const useStyles$n = makeStyles()((e) => ({
     modeButtons: {
       display: "grid",
       gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-      gap: e.spacing(2.5),
-      marginTop: e.spacing(3),
+      gap: e.spacing(2),
+      marginTop: e.spacing(2),
       width: `calc(100% - ${e.spacing(6)})`,
       maxWidth: 640,
       boxSizing: "border-box",
@@ -227048,7 +227069,7 @@ const useStyles$n = makeStyles()((e) => ({
     modeCard: {
       position: "relative",
       overflow: "hidden",
-      minHeight: 220,
+      minHeight: 190,
       minWidth: 0,
       padding: e.spacing(3),
       borderRadius: 22,
@@ -227081,6 +227102,32 @@ const useStyles$n = makeStyles()((e) => ({
         e.palette.mode === "dark"
           ? "linear-gradient(145deg, rgba(56,39,72,.96), rgba(26,22,36,.98))"
           : "linear-gradient(145deg, #ffffff, #fbf5ff)",
+    },
+    networkCard: {
+      gridColumn: "1 / -1",
+      minHeight: 70,
+      padding: e.spacing(0.75, 2.25),
+    },
+    networkCardContent: {
+      position: "relative",
+      zIndex: 1,
+      display: "grid",
+      gridTemplateColumns: "88px minmax(0, 1fr) auto",
+      alignItems: "center",
+      gap: e.spacing(2),
+      width: "100%",
+      minWidth: 0,
+    },
+    networkPlayerIcon: {
+      display: "block",
+      width: 88,
+      height: 68,
+      objectFit: "contain",
+    },
+    networkCardTitle: {
+      minWidth: 0,
+      fontWeight: 700,
+      letterSpacing: "-0.02em",
     },
     modeCardContent: {
       position: "relative",
@@ -227262,6 +227309,7 @@ const useStyles$n = makeStyles()((e) => ({
         id: Dt,
         disabled: !g && doesServiceRequireChrome(s[Dt]),
       })),
+      networkServiceIndex = s.findIndex((jt) => jt.name === "NetworkWM"),
       Vt = async (jt, Dt) => {
         var Pt, qt;
         let Ut = await ((qt =
@@ -227409,14 +227457,6 @@ const useStyles$n = makeStyles()((e) => ({
             jsxRuntimeExports.jsx(TopMenu, {}),
           ],
         }),
-        jsxRuntimeExports.jsx(Typography, {
-          component: "h2",
-          variant: "body2",
-          children: wmdCustomText(
-                wmdCustomText("MiniDisc 데스크톱 매니저", "MiniDisc desktop manager"),
-            "MiniDisc desktop manager",
-          ),
-        }),
         jsxRuntimeExports.jsx(Box, {
           className: t.main,
           children: o
@@ -227440,9 +227480,11 @@ const useStyles$n = makeStyles()((e) => ({
                             children: [
                               jsxRuntimeExports.jsxs(Box, {
                                 className: t.modeButtons,
+                                "data-wmd-mode-grid": "true",
                                 children: [
                                   jsxRuntimeExports.jsx(ButtonBase, {
                                     className: t.modeCard,
+                                    "data-wmd-mode-card": "netmd",
                                     disabled: P,
                                     onClick: () => Vt("netmd", 0),
                                     children: jsxRuntimeExports.jsxs(Box, {
@@ -227453,6 +227495,13 @@ const useStyles$n = makeStyles()((e) => ({
                                           children: [
                                             jsxRuntimeExports.jsx(Box, {
                                               className: t.discIcon,
+                                              "data-wmd-disc-icon": "netmd",
+                                              children: jsxRuntimeExports.jsx("img", {
+                                                "data-wmd-media-image": "netmd",
+                                                src: "sandbox://assets/netmd-media-final.png",
+                                                alt: wmdCustomText("일반 MiniDisc 미디어", "Standard MiniDisc media"),
+                                                draggable: !1,
+                                              }),
                                             }),
                                             jsxRuntimeExports.jsx(Chip, {
                                               label: wmdCustomText("일반 MD", "Standard MD"),
@@ -227467,14 +227516,6 @@ const useStyles$n = makeStyles()((e) => ({
                                           children: "NetMD",
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
-                                          variant: "subtitle1",
-                                          className: t.modeCardSubtitle,
-                                          children: wmdCustomText(
-                                            wmdCustomText("일반 MD 모드", "Standard MD mode"),
-                                            "Standard MD mode",
-                                          ),
-                                        }),
-                                        jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
@@ -227486,6 +227527,7 @@ const useStyles$n = makeStyles()((e) => ({
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           className: t.modeCardAction,
+                                          "data-wmd-mode-action": "true",
                                           children: wmdCustomText(
                                             wmdCustomText("NetMD로 연결 →", "Connect with NetMD →"),
                                             "Connect with NetMD →",
@@ -227496,6 +227538,7 @@ const useStyles$n = makeStyles()((e) => ({
                                   }),
                                   jsxRuntimeExports.jsx(ButtonBase, {
                                     className: `${t.modeCard} ${t.himdCard}`,
+                                    "data-wmd-mode-card": "himd",
                                     disabled: P,
                                     onClick: () => Vt("himd", 2),
                                     children: jsxRuntimeExports.jsxs(Box, {
@@ -227506,6 +227549,13 @@ const useStyles$n = makeStyles()((e) => ({
                                           children: [
                                             jsxRuntimeExports.jsx(Box, {
                                               className: `${t.discIcon} ${t.himdDiscIcon}`,
+                                              "data-wmd-disc-icon": "himd",
+                                              children: jsxRuntimeExports.jsx("img", {
+                                                "data-wmd-media-image": "himd",
+                                                src: "sandbox://assets/himd-media-wikimedia.jpg",
+                                                alt: wmdCustomText("1GB Hi-MD 미디어", "1GB Hi-MD media"),
+                                                draggable: !1,
+                                              }),
                                             }),
                                             jsxRuntimeExports.jsx(Chip, {
                                               label: wmdCustomText("실험 기능", "Experimental"),
@@ -227520,14 +227570,6 @@ const useStyles$n = makeStyles()((e) => ({
                                           children: "Hi-MD",
                                         }),
                                         jsxRuntimeExports.jsx(Typography, {
-                                          variant: "subtitle1",
-                                          className: t.modeCardSubtitle,
-                                          children: wmdCustomText(
-                                            wmdCustomText("Hi-MD 미디어 모드", "Hi-MD media mode"),
-                                            "Hi-MD media mode",
-                                          ),
-                                        }),
-                                        jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           color: "textSecondary",
                                           className: t.modeCardDescription,
@@ -227539,6 +227581,7 @@ const useStyles$n = makeStyles()((e) => ({
                                         jsxRuntimeExports.jsx(Typography, {
                                           variant: "body2",
                                           className: t.modeCardAction,
+                                          "data-wmd-mode-action": "true",
                                           children: wmdCustomText(
                                             wmdCustomText("Hi-MD로 연결 →", "Connect with Hi-MD →"),
                                             "Connect with Hi-MD →",
@@ -227547,6 +227590,48 @@ const useStyles$n = makeStyles()((e) => ({
                                       ],
                                     }),
                                   }),
+                                  networkServiceIndex >= 0 &&
+                                    jsxRuntimeExports.jsx(ButtonBase, {
+                                      className: `${t.modeCard} ${t.networkCard}`,
+                                      disabled: P,
+                                      onClick: () =>
+                                        Nt[networkServiceIndex].handler(),
+                                      "data-wmd-mode-card": "networkwm",
+                                      "aria-label": wmdCustomText(
+                                        "네트워크 플레이어 연결 (실험기능)",
+                                        "Connect Network Player (Experimental)",
+                                      ),
+                                      children: jsxRuntimeExports.jsxs(Box, {
+                                        className: t.networkCardContent,
+                                        "data-wmd-network-content": "true",
+                                        children: [
+                                          jsxRuntimeExports.jsx("img", {
+                                            className: t.networkPlayerIcon,
+                                            "data-wmd-network-icon": "true",
+                                            src: "sandbox://assets/network-walkman-icon.png",
+                                            alt: "",
+                                            draggable: !1,
+                                          }),
+                                          jsxRuntimeExports.jsx(Typography, {
+                                            variant: "h6",
+                                            className: t.networkCardTitle,
+                                            "data-wmd-network-title": "true",
+                                            children: wmdCustomText(
+                                              "네트워크 플레이어 연결",
+                                              "Connect Network Player",
+                                            ),
+                                          }),
+                                          jsxRuntimeExports.jsx(Chip, {
+                                            label: wmdCustomText(
+                                              "실험기능",
+                                              "Experimental",
+                                            ),
+                                            color: "primary",
+                                            size: "small",
+                                          }),
+                                        ],
+                                      }),
+                                    }),
                                 ],
                               }),
                               jsxRuntimeExports.jsx(Typography, {
@@ -227563,8 +227648,8 @@ const useStyles$n = makeStyles()((e) => ({
                                   severity: "info",
                                   className: t.notice,
                                   children: wmdCustomText(
-                                    wmdCustomText("범용 WinUSB를 한 번 설치하면 NetMD(0x0219)와 Hi-MD(0x021a)에 모두 적용됩니다. 탐색기용 USBSTOR와 자동 전환되지는 않습니다.", "Installing universal WinUSB once covers both NetMD (0x0219) and Hi-MD (0x021a). It does not switch automatically with USBSTOR for File Explorer."),
-                                    "Install the universal WinUSB driver once to cover both NetMD (0x0219) and Hi-MD (0x021a). It does not switch automatically to the USBSTOR driver used by File Explorer.",
+                                    wmdCustomText("WinUSB 하나로 NetMD·Hi-MD를 지원하며 USBSTOR와 자동 전환되지 않습니다.", "One WinUSB driver supports NetMD and Hi-MD; it does not switch automatically with USBSTOR."),
+                                    "One WinUSB driver supports NetMD and Hi-MD; it does not switch automatically with USBSTOR.",
                                   ),
                                 }),
                               jsxRuntimeExports.jsxs(Box, {

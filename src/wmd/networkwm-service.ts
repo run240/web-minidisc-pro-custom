@@ -6,6 +6,8 @@ import { HiMDKBPSToFrameSize, UMSCHiMDFilesystem, generateCodecInfo } from "himd
 import { AbstractedTrack, DatabaseAbstraction } from "networkwm-js/dist/database-abstraction";
 import { unmountAll } from "../unmount-drives";
 import { WebUSBDevice, findByIds, usb } from "usb";
+import { backupOMGAudioMetadata, findMountedOMGAudioVolumes, findMountedPartialOMGAudioVolumes, MountedNetworkWMFilesystem, restoreLatestOMGAudioMetadata } from './mounted-networkwm-filesystem';
+import { getMountedNetworkWMProfile } from './networkwm-mounted-profiles';
 
 export class NetworkWMService extends NetMDService {
     private name: string = "";
@@ -18,22 +20,45 @@ export class NetworkWMService extends NetMDService {
         total: number,
         used: number,
     } | null = null;
+    private mountedVolumeRoot: string | null = null;
+    private readOnlyMode = false;
+    private mountedMetadataBackup: string | null = null;
     public deviceConnectedCallback?: (legacy: usb.Device, webusb: WebUSBDevice) => {}
-    public constructor(private keyData?: Uint8Array){ super(); }
+    public constructor(private keyData?: Uint8Array, private backupRoot?: string){ super(); }
+
+    private ensureMountedWriteBackup(): void {
+        if(!this.mountedVolumeRoot || this.mountedMetadataBackup) return;
+        if(!this.backupRoot) {
+            throw new Error(`A metadata backup location is required before enabling ${this.name || 'Network Walkman'} writes.`);
+        }
+        this.mountedMetadataBackup = backupOMGAudioMetadata(this.mountedVolumeRoot, this.backupRoot, this.name);
+        console.log(`${this.name || 'Network Walkman'} OMGAUDIO metadata backup created: ${this.mountedMetadataBackup}`);
+    }
+
+    private ensureWritable(): void {
+        if(this.readOnlyMode) {
+            throw new Error(`${this.name || 'This Network Walkman'} is read-only during its first validation phase.`);
+        }
+    }
 
     isDeviceConnected(device: USBDevice): boolean {
         if (!this.database) return false;
+        if(this.mountedVolumeRoot) {
+            return findMountedOMGAudioVolumes().includes(this.mountedVolumeRoot);
+        }
         return (this.database.database.filesystem as UMSCHiMDFilesystem).driver.isDeviceConnected(device);
     }
 
     async getServiceCapabilities(): Promise<Capability[]> {
-        return [
+        const capabilities = [
             Capability.himdTitles,
             Capability.contentList,
-            Capability.trackUpload,
-            Capability.metadataEdit,
             Capability.trackDownload,
         ];
+        if(!this.readOnlyMode) {
+            capabilities.push(Capability.trackUpload, Capability.metadataEdit);
+        }
+        return capabilities;
     }
     async getDeviceStatus(): Promise<DeviceStatus> {
         return {
@@ -44,13 +69,6 @@ export class NetworkWMService extends NetMDService {
         }
     }
     async pair(): Promise<boolean> {
-        if(!this.keyData) throw new Error("No keyring provided. Please import the keyring via settings.");
-        const bypassCoherencyChecks = true;
-        if(bypassCoherencyChecks) {
-            console.log("Warning: All FAT filesystem coherency checks are bypassed!\nThis might cause data corruption!")
-        }
-        await initCrypto();
-        importKeys(this.keyData);
         let legacyDevice: any;
         let matchedDevice: DeviceDefinition | null = null;
         for(const dev of DeviceIds){
@@ -62,6 +80,51 @@ export class NetworkWMService extends NetMDService {
             }
         }
         if(!legacyDevice) return false;
+
+        // Validated generation-4 OMGAUDIO devices can use their mounted Windows
+        // mass-storage volume for DRM-free management without an OpenMG keyring
+        // or replacing the working Sony storage driver with WinUSB.
+        const mountedProfile = getMountedNetworkWMProfile(matchedDevice.productId);
+        if(process.platform === 'win32' && mountedProfile) {
+            let volumes = findMountedOMGAudioVolumes();
+            if(volumes.length === 0 && this.backupRoot && !mountedProfile.readOnly) {
+                const partialVolumes = findMountedPartialOMGAudioVolumes();
+                if(partialVolumes.length === 1) {
+                    const restoredFrom = restoreLatestOMGAudioMetadata(partialVolumes[0], this.backupRoot, matchedDevice.name);
+                    if(restoredFrom) {
+                        console.warn(`${matchedDevice.name} OMGAUDIO metadata recovered from: ${restoredFrom}`);
+                        volumes = findMountedOMGAudioVolumes();
+                    }
+                }
+            }
+            if(volumes.length === 0) {
+                throw new Error(`${matchedDevice.name} was found, but its mounted OMGAUDIO volume was not found.`);
+            }
+            if(volumes.length > 1) {
+                throw new Error('More than one OMGAUDIO volume is mounted. Disconnect the other players and retry.');
+            }
+
+            const volumeRoot = volumes[0];
+            const drmFreeDefinition: DeviceDefinition = {
+                ...matchedDevice,
+                disableDRM: true,
+            };
+            const filesystem = new MountedNetworkWMFilesystem(volumeRoot);
+            this.database = await DatabaseAbstraction.create(filesystem, drmFreeDefinition);
+            this.name = matchedDevice.name;
+            this.mountedVolumeRoot = volumeRoot;
+            this.readOnlyMode = mountedProfile.readOnly;
+            this.mountedMetadataBackup = null;
+            return true;
+        }
+
+        if(!this.keyData) throw new Error("No keyring provided. Please import the keyring via settings.");
+        const bypassCoherencyChecks = true;
+        if(bypassCoherencyChecks) {
+            console.log("Warning: All FAT filesystem coherency checks are bypassed!\nThis might cause data corruption!")
+        }
+        await initCrypto();
+        importKeys(this.keyData);
 
         if(['darwin', 'linux'].includes(process.platform)){
             await unmountAll(matchedDevice.vendorId, matchedDevice.productId);
@@ -124,13 +187,12 @@ export class NetworkWMService extends NetMDService {
             for(let artist of sorted){
                 for(let album of artist.contents) {
                     let tracks: Track[] = [];
-                    groups.push({
-                        fullWidthTitle: null,
-                        title: `${artist.name} - ${album.name}`,
-                        tracks,
-                        index: i,
-                    })
+                    const groupIndex = i;
                     for(let track of album.contents) {
+                        const payloadPath = resolvePathFromGlobalIndex(track.systemIndex);
+                        if(await this.database.database.filesystem.getSize(payloadPath) === null) {
+                            continue;
+                        }
                         nwjsTracks.push(track);
                         tracks.push({
                             channel: 2,
@@ -142,6 +204,14 @@ export class NetworkWMService extends NetMDService {
                             title: track.title,
                             album: track.album,
                             artist: track.artist,
+                        });
+                    }
+                    if(tracks.length > 0) {
+                        groups.push({
+                            fullWidthTitle: null,
+                            title: `${artist.name} - ${album.name}`,
+                            tracks,
+                            index: groupIndex,
                         });
                     }
                 }
@@ -161,8 +231,8 @@ export class NetworkWMService extends NetMDService {
             total: this.cache.total,
             trackCount: this.cache.nwjsTracks.length,
             used: this.cache.used,
-            writable: true,
-            writeProtected: false,
+            writable: !this.readOnlyMode,
+            writeProtected: this.readOnlyMode,
             groups: [{fullWidthTitle: null, title: null, index: 0, tracks: []}, ...this.cache.groups]
         };
 
@@ -175,6 +245,8 @@ export class NetworkWMService extends NetMDService {
     session: UMSCNWJSSession | null = null;
 
     async prepareUpload() {
+        this.ensureWritable();
+        this.ensureMountedWriteBackup();
         if(this.database.deviceInfo.disableDRM) return;
         if(this.session) throw new Error("Invalid state!");
         const filesystem = this.database.database.filesystem as UMSCHiMDFilesystem;
@@ -217,6 +289,7 @@ export class NetworkWMService extends NetMDService {
     }
 
     async upload(_title: TitleParameter, _: string, data: ArrayBuffer, format: Codec, progressCallback: (progress: { written: number; encrypted: number; total: number; }) => void): Promise<void> {
+        this.ensureWritable();
         const { artist, title, album } = _title as {
             title?: string;
             album?: string;
@@ -256,6 +329,8 @@ export class NetworkWMService extends NetMDService {
     }
 
     async renameTrack(index: number, newTitle: TitleParameter, newFullWidthTitle?: string): Promise<void> {
+        this.ensureWritable();
+        this.ensureMountedWriteBackup();
         // The objects are never cloned - current cache maintains a reference to the database abstraction's track structure
         if(!this.cache) await this.listContent();
         const track = this.cache.nwjsTracks[index];
@@ -278,6 +353,9 @@ export class NetworkWMService extends NetMDService {
     }
 
     async deleteTracks(indices: number[]) {
+        this.ensureWritable();
+        this.ensureMountedWriteBackup();
+        if(!this.cache) await this.listContent();
         // Sorting here does not matter.
         // Deleting an index does not move any other indices around
         for(let index of indices) {
@@ -288,6 +366,7 @@ export class NetworkWMService extends NetMDService {
     }
 
     async moveTrack(src: number, dst: number, updateGroups?: boolean) {
+        this.ensureWritable();
         // Assure the user cannot move this track beyond the limits of its region.
         if(!this.cache) await this.listContent();
         // Find top and bottom of this album.
@@ -308,6 +387,12 @@ export class NetworkWMService extends NetMDService {
     }
 
     wipeDisc(): Promise<void> {
+        try {
+            this.ensureWritable();
+        } catch(error) {
+            return Promise.reject(error);
+        }
+        this.ensureMountedWriteBackup();
         this.cache = null;
         return this.database.eraseAll();
     }
@@ -357,6 +442,7 @@ export class NetworkWMService extends NetMDService {
     }
 
     async renameGroup(groupIndex: number, newTitle: string, newFullWidthTitle?: string): Promise<void> {
+        this.ensureMountedWriteBackup();
         // Check if the new title isn't ambiguous.
         if(!this.cache) await this.listContent();
         if((newTitle.length - newTitle.replace('-', '').length) !== 1) {

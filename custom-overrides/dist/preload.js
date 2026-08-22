@@ -1583,7 +1583,7 @@ exports.CHANGELOG = [
         const bodyText = (document.body?.textContent || '').replace(/\s+/g, ' ');
         const isWelcomeScreen = bodyText.includes('사용할 디스크 모드를 선택하세요') ||
             /(?:select|choose).{0,30}(?:disc|disk).{0,20}mode/i.test(bodyText);
-        const heading = Array.from(document.querySelectorAll('h1')).find(element => /Web MiniDisc Pro|HiMD \(|Sony MZ-|MiniDisc/i.test((element.textContent || '').trim()));
+        const heading = Array.from(document.querySelectorAll('h1')).find(element => /Web MiniDisc Pro|HiMD \(|Sony (?:MZ|NW|MDS)-|MiniDisc/i.test((element.textContent || '').trim()));
         const shell = heading?.closest('.MuiPaper-root');
         for (const previousShell of document.querySelectorAll('[data-wmd-shell]')) {
             if (previousShell !== shell)
@@ -1591,6 +1591,37 @@ exports.CHANGELOG = [
         }
         if (shell) {
             shell.dataset.wmdShell = isWelcomeScreen ? 'welcome' : 'main';
+            if (!isWelcomeScreen) {
+                heading.dataset.wmdDeviceTitle = 'true';
+                const header = heading.parentElement;
+                if (header) {
+                    header.dataset.wmdDeviceHeader = 'true';
+                    const headerActions = Array.from(header.children).find(element => element !== heading);
+                    if (headerActions)
+                        headerActions.dataset.wmdHeaderActions = 'true';
+                }
+                const capacity = Array.from(shell.querySelectorAll('h2')).find(element => !element.closest('[role="dialog"]'));
+                if (capacity)
+                    capacity.dataset.wmdCapacityPanel = 'true';
+                const toolbar = Array.from(shell.querySelectorAll('.MuiToolbar-root')).find(element => !element.closest('[role="dialog"]'));
+                if (toolbar) {
+                    toolbar.dataset.wmdDiscToolbar = 'true';
+                    const discTitle = toolbar.querySelector('h3');
+                    if (discTitle)
+                        discTitle.dataset.wmdDiscTitle = 'true';
+                }
+                const trackList = shell.querySelector('#main');
+                if (trackList)
+                    trackList.dataset.wmdTrackList = 'true';
+                const addButton = shell.querySelector('button[aria-label="add"], button[aria-label="트랙 추가"], button[aria-label="Add track"]');
+                if (addButton)
+                    addButton.dataset.wmdAddTracks = 'true';
+                for (const footerText of document.querySelectorAll('body p, body footer, body span, body a')) {
+                    const footerLabel = (footerText.textContent || '').replace(/\s+/g, ' ').trim();
+                    if (/^(?:©\s*)?Stefano Brilli(?:,?\s*Asivery)?(?:\s*2026\.?)?$/i.test(footerLabel) && !footerText.closest('[data-wmd-shell]'))
+                        footerText.dataset.wmdLegacyFooter = 'true';
+                }
+            }
         }
         for (const subtitle of document.querySelectorAll('h2')) {
             const text = (subtitle.textContent || '').replace(/\s+/g, ' ').trim();
@@ -1604,18 +1635,26 @@ exports.CHANGELOG = [
         }
         const connectionTargets = Array.from(document.querySelectorAll('button, [role="button"]'));
         for (const target of connectionTargets) {
-            const text = (target.textContent || '').replace(/\s+/g, ' ').trim();
-            if (!/^(?:NetMD|Hi-MD).*(?:연결|Connect)|^(?:일반 MD|실험 기능|Standard MD|Experimental).*(?:NetMD|Hi-MD)/i.test(text))
+            if (target.dataset.wmdModeCard === 'networkwm')
                 continue;
-            if (!/(?:일반 MD 모드|Standard MD mode|Hi-MD 미디어 모드|Hi-MD media mode)/i.test(text))
+            const title = Array.from(target.querySelectorAll('h1, h2, h3, h4, h5, h6')).find(element => /^(?:NetMD|Hi-MD)$/i.test((element.textContent || '').trim()));
+            const titleText = (title?.textContent || '').trim();
+            const directMode = target.dataset.wmdModeCard;
+            const mode = directMode === 'netmd' || directMode === 'himd'
+                ? directMode
+                : /^Hi-MD$/i.test(titleText)
+                    ? 'himd'
+                    : /^NetMD$/i.test(titleText)
+                        ? 'netmd'
+                        : null;
+            if (!mode)
                 continue;
-            const mode = /(?:Hi-MD 미디어 모드|Hi-MD media mode)/i.test(text) ? 'himd' : 'netmd';
             target.dataset.wmdModeCard = mode;
             target.parentElement?.setAttribute('data-wmd-mode-grid', 'true');
             const action = Array.from(target.querySelectorAll('p, span')).find(element => /(?:(?:NetMD|Hi-MD)로 연결|Connect with (?:NetMD|Hi-MD))/i.test((element.textContent || '').trim()));
             if (action)
                 action.dataset.wmdModeAction = 'true';
-            const discIcon = Array.from(target.querySelectorAll('div')).find(element => {
+            const discIcon = target.querySelector('[data-wmd-disc-icon]') || Array.from(target.querySelectorAll('div')).find(element => {
                 const style = getComputedStyle(element);
                 const width = Number.parseFloat(style.width);
                 return style.borderRadius === '50%' && width >= 48 && width <= 70;
@@ -1700,7 +1739,7 @@ exports.CHANGELOG = [
             holder.innerHTML = lucideIcon(match[1]);
             holder.dataset.wmdLucideReady = match[1];
         }
-        const heading = Array.from(document.querySelectorAll('h1')).find(element => /Web MiniDisc Pro|HiMD \(|Sony MZ-|MiniDisc/i.test((element.textContent || '').trim()));
+        const heading = Array.from(document.querySelectorAll('h1')).find(element => /Web MiniDisc Pro|HiMD \(|Sony (?:MZ|NW|MDS)-|MiniDisc/i.test((element.textContent || '').trim()));
         const shell = heading?.closest('.MuiPaper-root');
         const topMenuButton = shell?.querySelector('h1')?.parentElement?.querySelector('button');
         if (topMenuButton && !topMenuButton.dataset.wmdLucideTopMenu) {
@@ -1765,6 +1804,25 @@ exports.CHANGELOG = [
             dialog.dataset.wmdDialogKind = kind;
             if (alert)
                 dialog.dataset.wmdAlertDialog = kind === 'warning' ? 'error' : 'warning';
+            if (kind === 'transfer') {
+                dialog.dataset.wmdTransferDialog = 'true';
+                const content = dialog.querySelector('.MuiDialogContent-root');
+                if (content) {
+                    content.dataset.wmdTransferContent = 'true';
+                    Array.from(content.querySelectorAll(':scope > .MuiDialogContentText-root')).forEach((element, index) => {
+                        element.dataset.wmdTransferLabel = String(index + 1);
+                    });
+                    Array.from(content.querySelectorAll(':scope > .MuiLinearProgress-root')).forEach((element, index) => {
+                        element.dataset.wmdTransferProgress = String(index + 1);
+                        const percentage = element.nextElementSibling;
+                        if (percentage)
+                            percentage.dataset.wmdTransferPercentage = String(index + 1);
+                    });
+                }
+                const actions = dialog.querySelector('.MuiDialogActions-root');
+                if (actions)
+                    actions.dataset.wmdTransferActions = 'true';
+            }
             if (!title)
                 continue;
             title.dataset.wmdDialogTitle = 'true';
@@ -2531,7 +2589,7 @@ exports.CHANGELOG = [
             existing?.remove();
             return;
         }
-        const pageHeading = Array.from(document.querySelectorAll('h1')).find(heading => /^(?:HiMD \(|Sony MZ-|MiniDisc)/i.test((heading.textContent || '').trim()));
+        const pageHeading = Array.from(document.querySelectorAll('h1')).find(heading => /^(?:HiMD \(|Sony (?:MZ|NW|MDS)-|MiniDisc)/i.test((heading.textContent || '').trim()));
         const headingRow = pageHeading?.parentElement;
         const menuButton = headingRow
             ? Array.from(headingRow.querySelectorAll(':scope > button')).find(button => !button.matches('[data-mode-home-button]'))
@@ -2823,6 +2881,35 @@ exports.CHANGELOG = [
         // below the entire error report and effectively off-screen.
         errorLabel.insertAdjacentElement('beforebegin', holder);
     };
+    const translateNetworkWMTransferDialog = () => {
+        const isNetworkWalkman = Array.from(document.querySelectorAll('h1'))
+            .some(heading => /^Sony NW-/i.test((heading.textContent || '').trim()));
+        if (!isNetworkWalkman)
+            return;
+        const replacements = [
+            [/MD에 녹음 중\.\.\.|Recording to MD\.\.\./g, uiText('네트워크 플레이어로 전송 중…', 'Transferring to the network player…')],
+            [/Hi-MD는 초기 인증과 암호화 준비에 시간이 걸려 진행률이 한동안 0%로 보일 수 있습니다\. 작업이 시작될 때까지 RH10의 전원이나 USB 케이블을 분리하지 마세요\./g, uiText('네트워크 플레이어용 ATRAC 변환은 곡 수에 따라 시간이 걸릴 수 있습니다. 변환과 전송이 끝날 때까지 A3000의 전원이나 USB 케이블을 분리하지 마세요.', 'ATRAC conversion for the network player can take time depending on the number of tracks. Do not power off or disconnect the A3000 until conversion and transfer are complete.')],
+            [/Hi-MD authentication and encryption setup can take time, so progress may remain at 0% for a while\. Do not power off the RH10 or disconnect USB before the operation begins\./g, uiText('네트워크 플레이어용 ATRAC 변환은 곡 수에 따라 시간이 걸릴 수 있습니다. 변환과 전송이 끝날 때까지 A3000의 전원이나 USB 케이블을 분리하지 마세요.', 'ATRAC conversion for the network player can take time depending on the number of tracks. Do not power off or disconnect the A3000 until conversion and transfer are complete.')],
+            [/MD 전송 /g, uiText('플레이어 전송 ', 'Player transfer ')],
+            [/MD transfer /g, uiText('플레이어 전송 ', 'Player transfer ')],
+            [/녹음 취소|Cancel recording/g, uiText('전송 취소', 'Cancel transfer')],
+            [/현재 트랙 후 중지 중\.\.\.|Stopping after the current track\.\.\./g, uiText('현재 곡 전송 후 중지 중…', 'Stopping after the current track…')],
+        ];
+        for (const dialog of document.querySelectorAll('[role="dialog"]')) {
+            const dialogText = (dialog.textContent || '').replace(/\s+/g, ' ');
+            if (!/MD에 녹음 중|Recording to MD|파일 변환|File conversion/.test(dialogText))
+                continue;
+            const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                let value = node.nodeValue || '';
+                for (const [pattern, replacement] of replacements)
+                    value = value.replace(pattern, replacement);
+                if (value !== node.nodeValue)
+                    node.nodeValue = value;
+            }
+        }
+    };
     const refreshKoreanUI = () => {
         installModernThemeMarkers();
         installLucideIcons();
@@ -2836,6 +2923,7 @@ exports.CHANGELOG = [
         installRenameInputFocusRecovery();
         removeObsoleteWelcomeActions();
         translateKoreanUI();
+        translateNetworkWMTransferDialog();
         hideSettingsOverriddenByModernTheme();
         installModernLoadingState();
         cleanUpModernMainMenu();
@@ -3577,16 +3665,35 @@ exports.CHANGELOG = [
     // MD Squirrel stays isolated from the React tree. The launcher is shown
     // only on the mode-selection screen and opens a self-contained modal.
     require("./md-squirrel-preload").install();
-    const observer = new MutationObserver(refreshKoreanUI);
+    const observerOptions = { childList: true, characterData: true, subtree: true };
+    let refreshScheduled = false;
+    const observer = new MutationObserver(() => {
+        if (refreshScheduled)
+            return;
+        refreshScheduled = true;
+        requestAnimationFrame(() => {
+            refreshScheduled = false;
+            observer.disconnect();
+            try {
+                refreshKoreanUI();
+            }
+            finally {
+                observer.observe(document.body, observerOptions);
+            }
+        });
+    });
+    const observeAndRefreshKoreanUI = () => {
+        observer.observe(document.body, observerOptions);
+        observer.takeRecords();
+        refreshKoreanUI();
+    };
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-            refreshKoreanUI();
+            observeAndRefreshKoreanUI();
         }, { once: true });
     }
     else {
-        observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-        refreshKoreanUI();
+        observeAndRefreshKoreanUI();
     }
     console.log('====PRELOAD COMPLETE====');
     console.groupEnd();

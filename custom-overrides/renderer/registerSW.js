@@ -1,1 +1,5 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('sandbox://sw.js', { scope: 'sandbox://' })})}
+if ('serviceWorker' in navigator && ['http:', 'https:'].includes(location.protocol)) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js');
+  });
+}

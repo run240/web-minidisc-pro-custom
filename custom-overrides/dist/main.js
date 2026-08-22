@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const networkwm_js_1 = require("networkwm-js");
 const path_1 = __importDefault(require("path"));
+const url_1 = require("url");
 const os_1 = __importDefault(require("os"));
 const fs_1 = __importDefault(require("fs"));
 const translations_1 = require("./wmd/translations");
@@ -35,6 +36,17 @@ function appendDiagnosticLog(category, value) {
 process.on('uncaughtExceptionMonitor', error => appendDiagnosticLog('MAIN uncaughtException', error));
 process.on('unhandledRejection', reason => appendDiagnosticLog('MAIN unhandledRejection', reason));
 const getOfRenderer = (...p) => path_1.default.join(__dirname, '..', 'renderer', ...p);
+electron_1.protocol.registerSchemesAsPrivileged([{
+    scheme: 'sandbox',
+    privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+        codeCache: true,
+    },
+}]);
 async function ewmdOpenDialog(window, filters, directory) {
     const res = await electron_1.dialog.showOpenDialog(window, { filters, properties: [directory ? 'openDirectory' : 'openFile'] });
     if (res.canceled)
@@ -277,6 +289,13 @@ function setupEncoder() {
 }
 async function createWindow() {
     const store = new electron_store_1.default();
+    const startupLoadingPage = `data:text/html;charset=UTF-8,${encodeURIComponent(`<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><style>
+html,body{width:100%;height:100%;margin:0;background:#0d0d10;color:#d8d5dc;font-family:"Segoe UI","Malgun Gothic",sans-serif}
+body{display:grid;place-items:center}.loading{text-align:center;font-size:14px;letter-spacing:.02em}
+.spinner{width:34px;height:34px;margin:0 auto 18px;border:3px solid #343139;border-top-color:#e56a9b;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body><div class="loading"><div class="spinner"></div>불러오는 중…</div></body></html>`)} `;
     const savedBounds = store.get('windowBounds', null);
     const boundsAreVisible = savedBounds && electron_1.screen.getAllDisplays().some(display => {
         const area = display.workArea;
@@ -287,6 +306,8 @@ async function createWindow() {
     const window = new electron_1.BrowserWindow({
         ...(boundsAreVisible ? savedBounds : { width: 1280, height: 900 }),
         icon: path_1.default.join(__dirname, '..', 'res', 'icon.png'),
+        show: false,
+        backgroundColor: '#0d0d10',
         webPreferences: {
             nodeIntegration: false,
             preload: path_1.default.join(__dirname, 'preload.js'),
@@ -312,6 +333,8 @@ async function createWindow() {
     window.on('unmaximize', scheduleWindowPlacementSave);
     window.on('close', saveWindowPlacement);
     console.log(electron_1.app.getPath('exe'));
+    await window.loadURL(startupLoadingPage);
+    window.show();
     await integrate(window);
     window.setMenuBarVisibility(false);
     await window.loadURL('file://' + getOfRenderer('index.html')); //Can't use the `sandbox://` protocol - index.html would (incorrectly) redirect to https
@@ -2113,7 +2136,7 @@ async function integrate(window) {
     catch (_) {
         console.log("Can't read roots");
     }
-    const nwService = new networkwm_service_1.NetworkWMService(keyData);
+    const nwService = new networkwm_service_1.NetworkWMService(keyData, path_1.default.join(electron_1.app.getPath('userData'), 'networkwm-backups'));
     if (process.platform !== 'darwin') {
         const himdDeflist = traverseObject(window, () => himdService, "_himd_", {
             rememberMode: rememberPendingMiniDiscMode,
@@ -2452,14 +2475,13 @@ async function integrate(window) {
     showInspectElement: false,
 });
 electron_1.app.whenReady().then(() => {
-    electron_1.protocol.registerFileProtocol('sandbox', (rq, callback) => {
+    electron_1.protocol.handle('sandbox', async (rq) => {
         let decodedPath;
         try {
-            decodedPath = decodeURI(rq.url.substring('sandbox://'.length));
+            decodedPath = decodeURI(rq.url.substring('sandbox://'.length)).replace(/[\\/]$/, '');
         }
         catch {
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 400 });
         }
         const filePath = path_1.default.normalize(decodedPath.replace(/^[/\\]+/, ''));
         if (path_1.default.isAbsolute(filePath) || /^[a-zA-Z]:/.test(filePath) || filePath.split(path_1.default.sep).includes('..')) {
@@ -2468,12 +2490,18 @@ electron_1.app.whenReady().then(() => {
                 normalizedPath: filePath,
                 at: Date.now(),
             });
-            callback({ error: -10 });
-            return;
+            return new Response('Invalid renderer path', { status: 403 });
         }
         const tgt = getOfRenderer(filePath);
         console.log(`[SANDBOX]: Requested ${tgt}`);
-        callback(tgt);
+        const response = await electron_1.net.fetch((0, url_1.pathToFileURL)(tgt).toString());
+        const headers = new Headers(response.headers);
+        headers.set('Access-Control-Allow-Origin', '*');
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
     });
     createWindow();
 });

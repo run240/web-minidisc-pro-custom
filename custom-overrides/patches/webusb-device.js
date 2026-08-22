@@ -290,14 +290,18 @@ class WebUSBDevice {
             this.checkDeviceOpen();
             const endpoint = this.getEndpoint(endpointNumber | usb.LIBUSB_ENDPOINT_IN);
             // Some early Hi-MD units need substantially longer than ten
-            // seconds for media authentication, while the NH900 can spend the
-            // same amount of time committing ICV data after an upload. Keep
-            // the longer timeout scoped to the observed models on macOS.
+            // seconds for media authentication or for committing ICV data
+            // after an upload. RH10 on Windows can exhibit the same delayed
+            // final status response, so keep waiting without replaying the
+            // potentially accepted command.
             const isUnrestrictedHiMD = this.vendorId === 0x5341 && this.productId === 0x5256;
-            const needsSlowHiMDTimeout = (0, os_1.platform)() === 'darwin' &&
+            const isWindowsRH10 = (0, os_1.platform)() === 'win32' &&
+                this.vendorId === 0x054c && this.productId === 0x021a;
+            const needsSlowHiMDTimeout = isWindowsRH10 ||
+                ((0, os_1.platform)() === 'darwin' &&
                 ((this.vendorId === 0x054c &&
                     (this.productId === 0x017f || this.productId === 0x0183)) ||
-                    isUnrestrictedHiMD);
+                    isUnrestrictedHiMD));
             endpoint.timeout = Math.max(endpoint.timeout || 0, needsSlowHiMDTimeout ? 60000 : 10000);
             const result = await endpoint.transferAsync(length);
             return {

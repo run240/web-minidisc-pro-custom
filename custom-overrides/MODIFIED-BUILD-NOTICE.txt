@@ -32,6 +32,13 @@ Main modifications
 - MD 전송 정지 감지, 추정 원인 안내 및 진단 정보 복사
 - 기타 사용성 및 안정성 보완
 
+Application icon artwork
+------------------------
+대표 애플리케이션 아이콘은 MiniDisc와 SonicStage 시대 네트워크 플레이어
+관리 기능을 함께 나타내도록 이 커스텀 빌드를 위해 새로 제작했습니다.
+Sony, MiniDisc, Walkman의 글자·로고와 기존 ElectronWMD의 DeviantArt
+아이콘은 사용하지 않습니다.
+
 License and source
 ------------------
 이 프로그램은 GNU GPL version 2 조건에 따라 배포됩니다.

@@ -48,7 +48,7 @@ function installStyles() {
         transform: translateY(-2px);
       }
       #md-squirrel-launcher .mds-launcher-label {
-        position: absolute; right: 91px; top: 50%; transform: translateY(-50%);
+        position: absolute; right: 103px; top: 50%; transform: translateY(-50%);
         display: block; color: #aaa3ad; font-size: 11px; font-weight: 400;
         letter-spacing: 0; line-height: 1; white-space: nowrap;
         text-shadow: 0 1px 4px rgba(0,0,0,.65);
@@ -97,7 +97,7 @@ function installStyles() {
       #md-label-launcher:hover { transform: translateY(-2px); }
       #md-label-launcher:disabled { cursor: wait; opacity: .7; }
       #md-label-launcher .mdl-launcher-label {
-        position: absolute; left: 91px; top: 50%; transform: translateY(-50%);
+        position: absolute; left: 103px; top: 50%; transform: translateY(-50%);
         display: block; color: #aaa3ad; font-size: 11px; font-weight: 400;
         line-height: 1; white-space: nowrap; text-shadow: 0 1px 4px rgba(0,0,0,.65);
       }
